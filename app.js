@@ -9,7 +9,7 @@ const morgan = require("morgan");
 const authRoutes = require("./routes/authRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const managerRoutes = require("./routes/managerRoutes");
-const { closePool } = require("./database/db");
+const { closePool } = require("./config/database");
 const errorHandler = require("./middleware/errorHandler");
 
 const REQUIRED_ENV_VARS = ["PORT", "DB_USER", "DB_PASSWORD", "DB_CONNECTION_STRING", "JWT_SECRET"];

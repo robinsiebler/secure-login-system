@@ -1,4 +1,4 @@
-const { withConnection } = require("../database/db");
+const { withConnection } = require("../config/database");
 
 const RESET_TOKEN_EXPIRY_MINUTES = 30;
 
