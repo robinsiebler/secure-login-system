@@ -10,7 +10,7 @@ const authRoutes = require("./routes/authRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const managerRoutes = require("./routes/managerRoutes");
 const { closePool } = require("./database/db");
-const logger = require("./utils/logger");
+const errorHandler = require("./middleware/errorHandler");
 
 const REQUIRED_ENV_VARS = ["PORT", "DB_USER", "DB_PASSWORD", "DB_CONNECTION_STRING", "JWT_SECRET"];
 const missingEnvVars = REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
@@ -36,17 +36,10 @@ app.use("/api", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/manager", managerRoutes);
 
-// Malformed JSON bodies throw a SyntaxError from body-parser before any route
-// runs; without this handler Express's default error page leaks a stack trace
-// (file paths, dependency versions) to the client.
-app.use((err, req, res, next) => {
-    if (err.type === "entity.parse.failed" || err instanceof SyntaxError) {
-        return res.status(400).json({ error: "Invalid JSON in request body" });
-    }
-
-    logger.logError(req, err);
-    res.status(500).json({ error: "Server error" });
-});
+// Centralized error handler: catches malformed JSON, JWT errors, thrown
+// AppErrors (validation/auth/not-found/conflict), Oracle DB errors, and any
+// other unexpected exception. Must be registered after all routes.
+app.use(errorHandler);
 
 const server = app.listen(process.env.PORT, () => {
     console.log("Server running on port", process.env.PORT);

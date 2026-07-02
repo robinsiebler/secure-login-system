@@ -92,9 +92,24 @@ A small, security-focused login system built with Node.js, Express, Oracle Datab
 | `REGISTRATION` | info | A new account is created | `username`, `email`, `ip` |
 | `LOGIN_SUCCESS` | info | A login succeeds | `username`, `ip` |
 | `LOGIN_FAILURE` | warn | A login is rejected | `username`, `ip`, `reason` (`unknown_user`, `account_locked`, or `invalid_password`) |
-| `ERROR` | error | An unhandled exception hits a route's catch block | `route`, `method`, `ip`, `message`, `stack` |
+| `ERROR` | error | An unexpected exception reaches the centralized error handler (see below) | `route`, `method`, `ip`, `message`, `stack` |
 
 Passwords and password hashes are never logged. `LOGIN_FAILURE`'s `reason` field is intentionally more specific than the API's response (which always says `"Invalid username or password"` to resist enumeration) — it's only written to the server-side log, not returned to the client, so it doesn't reopen that side channel; it's there so brute-force patterns are visible to whoever reads the log.
+
+## Error handling
+
+Every route ultimately funnels errors through one centralized Express error-handling middleware (`middleware/errorHandler.js`, registered last in `app.js`). Controllers don't catch their own errors or format responses on failure — they either respond on success or `throw`, and Express 5 automatically forwards a thrown/rejected error from an async handler to this middleware. It branches on error type:
+
+| Error type | How it's recognized | Response |
+| --- | --- | --- |
+| Malformed JSON body | `body-parser`'s `SyntaxError` (`entity.parse.failed`) | `400`, `"Invalid JSON in request body"` |
+| Expired JWT | `err.name === "TokenExpiredError"` | `401`, `"Your session has expired. Please log in again."` |
+| Invalid/malformed JWT | `err.name === "JsonWebTokenError"` or `"NotBeforeError"` | `403`, `"Invalid authentication token."` |
+| Validation / auth / not-found / conflict | instance of `AppError` (see `utils/errors.js`: `ValidationError`, `AuthError`, `NotFoundError`, `ConflictError`) | whatever `statusCode`/message the thrown error carries — these are the "expected" 4xx outcomes every controller already had, just thrown instead of directly formatted |
+| Database error | `oracledb` sets a numeric `err.errorNum` on any `ORA-*` error | unique-constraint violations (`ORA-00001`) → `409`, `"That value is already in use."`; anything else → `500`, `"A database error occurred. Please try again."` |
+| Anything else | (fallback) | `500`, `"Server error"` |
+
+Only the last two categories (database errors and truly unexpected exceptions) are logged as `ERROR` events — routine 4xx outcomes (bad input, wrong password, expired token, etc.) are expected traffic, not bugs, so they aren't logged as errors. Full details (`message`, `stack`) are always logged server-side; the client only ever sees the friendly message.
 
 ## Roles & bootstrapping the first Admin
 

@@ -2,13 +2,9 @@ jest.mock("../services/userService", () => ({
     findUserById: jest.fn(),
 }));
 
-jest.mock("../utils/logger", () => ({
-    logError: jest.fn(),
-}));
-
 const userService = require("../services/userService");
-const logger = require("../utils/logger");
 const { authorizeRoles, ROLES } = require("../middleware/authorize");
+const { AuthError } = require("../utils/errors");
 
 function mockRes() {
     return {
@@ -36,9 +32,10 @@ describe("authorizeRoles", () => {
         const res = mockRes();
         const next = jest.fn();
 
-        await authorizeRoles(ROLES.ADMIN)(req, res, next);
-
-        expect(res.statusCode).toBe(401);
+        await expect(authorizeRoles(ROLES.ADMIN)(req, res, next)).rejects.toMatchObject({
+            statusCode: 401,
+            message: "User not found",
+        });
         expect(next).not.toHaveBeenCalled();
     });
 
@@ -48,9 +45,10 @@ describe("authorizeRoles", () => {
         const res = mockRes();
         const next = jest.fn();
 
-        await authorizeRoles(ROLES.ADMIN)(req, res, next);
-
-        expect(res.statusCode).toBe(403);
+        await expect(authorizeRoles(ROLES.ADMIN)(req, res, next)).rejects.toMatchObject({
+            statusCode: 403,
+            message: "You do not have permission to perform this action",
+        });
         expect(next).not.toHaveBeenCalled();
     });
 
@@ -83,22 +81,18 @@ describe("authorizeRoles", () => {
         const res = mockRes();
         const next = jest.fn();
 
-        await authorizeRoles(ROLES.ADMIN)(req, res, next);
-
-        expect(res.statusCode).toBe(403);
+        await expect(authorizeRoles(ROLES.ADMIN)(req, res, next)).rejects.toBeInstanceOf(AuthError);
         expect(next).not.toHaveBeenCalled();
     });
 
-    test("logs and returns 500 when the role lookup throws", async () => {
+    test("propagates the raw error when the role lookup throws, for the centralized handler to log", async () => {
         const dbError = new Error("connection lost");
         userService.findUserById.mockRejectedValue(dbError);
         const req = { user: { sub: 1 } };
         const res = mockRes();
         const next = jest.fn();
 
-        await authorizeRoles(ROLES.ADMIN)(req, res, next);
-
-        expect(res.statusCode).toBe(500);
-        expect(logger.logError).toHaveBeenCalledWith(req, dbError);
+        await expect(authorizeRoles(ROLES.ADMIN)(req, res, next)).rejects.toBe(dbError);
+        expect(next).not.toHaveBeenCalled();
     });
 });
