@@ -4,10 +4,6 @@ jest.mock("../services/userService", () => ({
     deleteUserById: jest.fn(),
 }));
 
-jest.mock("../utils/logger", () => ({
-    logError: jest.fn(),
-}));
-
 const userService = require("../services/userService");
 const managerController = require("../controllers/managerController");
 
@@ -51,9 +47,7 @@ describe("deleteEmployee", () => {
         const req = { params: { id: "abc" } };
         const res = mockRes();
 
-        await managerController.deleteEmployee(req, res);
-
-        expect(res.statusCode).toBe(400);
+        await expect(managerController.deleteEmployee(req, res)).rejects.toMatchObject({ statusCode: 400 });
         expect(userService.deleteUserById).not.toHaveBeenCalled();
     });
 
@@ -62,9 +56,7 @@ describe("deleteEmployee", () => {
         const req = { params: { id: "3" } };
         const res = mockRes();
 
-        await managerController.deleteEmployee(req, res);
-
-        expect(res.statusCode).toBe(404);
+        await expect(managerController.deleteEmployee(req, res)).rejects.toMatchObject({ statusCode: 404 });
         expect(userService.deleteUserById).not.toHaveBeenCalled();
     });
 
@@ -73,9 +65,10 @@ describe("deleteEmployee", () => {
         const req = { params: { id: "2" } };
         const res = mockRes();
 
-        await managerController.deleteEmployee(req, res);
-
-        expect(res.statusCode).toBe(403);
+        await expect(managerController.deleteEmployee(req, res)).rejects.toMatchObject({
+            statusCode: 403,
+            message: "Managers can only remove employees",
+        });
         expect(userService.deleteUserById).not.toHaveBeenCalled();
     });
 
@@ -84,9 +77,7 @@ describe("deleteEmployee", () => {
         const req = { params: { id: "1" } };
         const res = mockRes();
 
-        await managerController.deleteEmployee(req, res);
-
-        expect(res.statusCode).toBe(403);
+        await expect(managerController.deleteEmployee(req, res)).rejects.toMatchObject({ statusCode: 403 });
         expect(userService.deleteUserById).not.toHaveBeenCalled();
     });
 

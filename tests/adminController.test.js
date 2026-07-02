@@ -4,10 +4,6 @@ jest.mock("../services/userService", () => ({
     updateUserRole: jest.fn(),
 }));
 
-jest.mock("../utils/logger", () => ({
-    logError: jest.fn(),
-}));
-
 const userService = require("../services/userService");
 const adminController = require("../controllers/adminController");
 
@@ -51,9 +47,7 @@ describe("deleteUser", () => {
         const req = { params: { id: "abc" }, currentUser: { ID: 1 } };
         const res = mockRes();
 
-        await adminController.deleteUser(req, res);
-
-        expect(res.statusCode).toBe(400);
+        await expect(adminController.deleteUser(req, res)).rejects.toMatchObject({ statusCode: 400 });
         expect(userService.deleteUserById).not.toHaveBeenCalled();
     });
 
@@ -61,9 +55,10 @@ describe("deleteUser", () => {
         const req = { params: { id: "1" }, currentUser: { ID: 1 } };
         const res = mockRes();
 
-        await adminController.deleteUser(req, res);
-
-        expect(res.statusCode).toBe(400);
+        await expect(adminController.deleteUser(req, res)).rejects.toMatchObject({
+            statusCode: 400,
+            message: "You cannot delete your own account",
+        });
         expect(userService.deleteUserById).not.toHaveBeenCalled();
     });
 
@@ -72,9 +67,7 @@ describe("deleteUser", () => {
         const req = { params: { id: "2" }, currentUser: { ID: 1 } };
         const res = mockRes();
 
-        await adminController.deleteUser(req, res);
-
-        expect(res.statusCode).toBe(404);
+        await expect(adminController.deleteUser(req, res)).rejects.toMatchObject({ statusCode: 404 });
     });
 
     test("deletes another user successfully", async () => {
@@ -94,9 +87,7 @@ describe("updateUserRole", () => {
         const req = { params: { id: "2" }, body: { role: "SUPERUSER" }, currentUser: { ID: 1 } };
         const res = mockRes();
 
-        await adminController.updateUserRole(req, res);
-
-        expect(res.statusCode).toBe(400);
+        await expect(adminController.updateUserRole(req, res)).rejects.toMatchObject({ statusCode: 400 });
         expect(userService.updateUserRole).not.toHaveBeenCalled();
     });
 
@@ -104,9 +95,10 @@ describe("updateUserRole", () => {
         const req = { params: { id: "1" }, body: { role: "MANAGER" }, currentUser: { ID: 1 } };
         const res = mockRes();
 
-        await adminController.updateUserRole(req, res);
-
-        expect(res.statusCode).toBe(400);
+        await expect(adminController.updateUserRole(req, res)).rejects.toMatchObject({
+            statusCode: 400,
+            message: "You cannot change your own role",
+        });
         expect(userService.updateUserRole).not.toHaveBeenCalled();
     });
 
@@ -115,9 +107,7 @@ describe("updateUserRole", () => {
         const req = { params: { id: "2" }, body: { role: "MANAGER" }, currentUser: { ID: 1 } };
         const res = mockRes();
 
-        await adminController.updateUserRole(req, res);
-
-        expect(res.statusCode).toBe(404);
+        await expect(adminController.updateUserRole(req, res)).rejects.toMatchObject({ statusCode: 404 });
     });
 
     test("updates another user's role successfully", async () => {

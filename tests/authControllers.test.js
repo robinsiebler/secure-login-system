@@ -71,9 +71,7 @@ describe("register", () => {
         const req = { body: { username: "a", email: "not-an-email", password: "short" } };
         const res = mockRes();
 
-        await authControllers.register(req, res);
-
-        expect(res.statusCode).toBe(400);
+        await expect(authControllers.register(req, res)).rejects.toMatchObject({ statusCode: 400 });
         expect(userService.findUserByUsernameOrEmail).not.toHaveBeenCalled();
     });
 
@@ -82,9 +80,10 @@ describe("register", () => {
         const req = { body: { username: "robin99", email: "robin@example.com", password: "Str0ng!Pass1" } };
         const res = mockRes();
 
-        await authControllers.register(req, res);
-
-        expect(res.statusCode).toBe(409);
+        await expect(authControllers.register(req, res)).rejects.toMatchObject({
+            statusCode: 409,
+            message: "Username or email is already in use",
+        });
         expect(userService.createUser).not.toHaveBeenCalled();
     });
 
@@ -107,17 +106,14 @@ describe("register", () => {
         expect(logger.logRegistration).toHaveBeenCalledWith(req, { username: "robin99", email: "robin@example.com" });
     });
 
-    test("logs the error and returns 500 if user creation fails unexpectedly", async () => {
+    test("propagates the error unhandled if user creation fails unexpectedly, for the centralized handler to catch", async () => {
         userService.findUserByUsernameOrEmail.mockResolvedValue(null);
         const dbError = new Error("connection lost");
         userService.createUser.mockRejectedValue(dbError);
         const req = { body: { username: "robin99", email: "robin@example.com", password: "Str0ng!Pass1" } };
         const res = mockRes();
 
-        await authControllers.register(req, res);
-
-        expect(res.statusCode).toBe(500);
-        expect(logger.logError).toHaveBeenCalledWith(req, dbError);
+        await expect(authControllers.register(req, res)).rejects.toBe(dbError);
     });
 });
 
@@ -126,18 +122,14 @@ describe("login", () => {
         const req = { body: { username: "robin99" } };
         const res = mockRes();
 
-        await authControllers.login(req, res);
-
-        expect(res.statusCode).toBe(400);
+        await expect(authControllers.login(req, res)).rejects.toMatchObject({ statusCode: 400 });
     });
 
     test("rejects a non-string username without touching the database", async () => {
         const req = { body: { username: { a: 1 }, password: "whatever" } };
         const res = mockRes();
 
-        await authControllers.login(req, res);
-
-        expect(res.statusCode).toBe(400);
+        await expect(authControllers.login(req, res)).rejects.toMatchObject({ statusCode: 400 });
         expect(userService.findUserByUsername).not.toHaveBeenCalled();
     });
 
@@ -145,9 +137,7 @@ describe("login", () => {
         const req = { body: { username: "robin99", password: [1, 2, 3] } };
         const res = mockRes();
 
-        await authControllers.login(req, res);
-
-        expect(res.statusCode).toBe(400);
+        await expect(authControllers.login(req, res)).rejects.toMatchObject({ statusCode: 400 });
         expect(userService.findUserByUsername).not.toHaveBeenCalled();
     });
 
@@ -157,10 +147,10 @@ describe("login", () => {
         const req = { body: { username: "ghost", password: "whatever" } };
         const res = mockRes();
 
-        await authControllers.login(req, res);
-
-        expect(res.statusCode).toBe(401);
-        expect(res.body.error).toBe("Invalid username or password");
+        await expect(authControllers.login(req, res)).rejects.toMatchObject({
+            statusCode: 401,
+            message: "Invalid username or password",
+        });
         expect(bcrypt.compare).toHaveBeenCalledWith("whatever", "dummy-hash");
         expect(logger.logLoginFailure).toHaveBeenCalledWith(req, { username: "ghost", reason: "unknown_user" });
     });
@@ -171,9 +161,7 @@ describe("login", () => {
         const req = { body: { username: "robin99", password: "whatever" } };
         const res = mockRes();
 
-        await authControllers.login(req, res);
-
-        expect(res.statusCode).toBe(423);
+        await expect(authControllers.login(req, res)).rejects.toMatchObject({ statusCode: 423 });
         expect(bcrypt.compare).not.toHaveBeenCalled();
         expect(logger.logLoginFailure).toHaveBeenCalledWith(req, { username: "robin99", reason: "account_locked" });
     });
@@ -185,11 +173,11 @@ describe("login", () => {
         const req = { body: { username: "robin99", password: "wrong" } };
         const res = mockRes();
 
-        await authControllers.login(req, res);
-
+        await expect(authControllers.login(req, res)).rejects.toMatchObject({
+            statusCode: 401,
+            message: "Invalid username or password",
+        });
         expect(userService.recordFailedLogin).toHaveBeenCalledWith(1, 2);
-        expect(res.statusCode).toBe(401);
-        expect(res.body.error).toBe("Invalid username or password");
         expect(logger.logLoginFailure).toHaveBeenCalledWith(req, { username: "robin99", reason: "invalid_password" });
     });
 
@@ -207,16 +195,13 @@ describe("login", () => {
         expect(logger.logLoginSuccess).toHaveBeenCalledWith(req, { username: "robin99" });
     });
 
-    test("logs the error and returns 500 if the database lookup throws", async () => {
+    test("propagates the error unhandled if the database lookup throws, for the centralized handler to catch", async () => {
         const dbError = new Error("connection lost");
         userService.findUserByUsername.mockRejectedValue(dbError);
         const req = { body: { username: "robin99", password: "whatever" } };
         const res = mockRes();
 
-        await authControllers.login(req, res);
-
-        expect(res.statusCode).toBe(500);
-        expect(logger.logError).toHaveBeenCalledWith(req, dbError);
+        await expect(authControllers.login(req, res)).rejects.toBe(dbError);
     });
 });
 
@@ -225,9 +210,7 @@ describe("forgotPassword", () => {
         const req = { body: { email: "not-an-email" } };
         const res = mockRes();
 
-        await authControllers.forgotPassword(req, res);
-
-        expect(res.statusCode).toBe(400);
+        await expect(authControllers.forgotPassword(req, res)).rejects.toMatchObject({ statusCode: 400 });
         expect(userService.findUserByEmail).not.toHaveBeenCalled();
     });
 
@@ -259,18 +242,14 @@ describe("resetPassword", () => {
         const req = { body: { password: "Str0ng!Pass1" } };
         const res = mockRes();
 
-        await authControllers.resetPassword(req, res);
-
-        expect(res.statusCode).toBe(400);
+        await expect(authControllers.resetPassword(req, res)).rejects.toMatchObject({ statusCode: 400 });
     });
 
     test("rejects a weak new password without looking up the token", async () => {
         const req = { body: { token: "some-token", password: "weak" } };
         const res = mockRes();
 
-        await authControllers.resetPassword(req, res);
-
-        expect(res.statusCode).toBe(400);
+        await expect(authControllers.resetPassword(req, res)).rejects.toMatchObject({ statusCode: 400 });
         expect(passwordResetService.findValidResetToken).not.toHaveBeenCalled();
     });
 
@@ -280,9 +259,7 @@ describe("resetPassword", () => {
         const req = { body: { token: "bad-token", password: "Str0ng!Pass1" } };
         const res = mockRes();
 
-        await authControllers.resetPassword(req, res);
-
-        expect(res.statusCode).toBe(400);
+        await expect(authControllers.resetPassword(req, res)).rejects.toMatchObject({ statusCode: 400 });
         expect(userService.updateUserPassword).not.toHaveBeenCalled();
     });
 
@@ -294,10 +271,10 @@ describe("resetPassword", () => {
         const req = { body: { token: "good-token", password: "ReusedStr0ng!Pass1" } };
         const res = mockRes();
 
-        await authControllers.resetPassword(req, res);
-
-        expect(res.statusCode).toBe(400);
-        expect(res.body.error).toMatch(/cannot reuse/i);
+        await expect(authControllers.resetPassword(req, res)).rejects.toMatchObject({
+            statusCode: 400,
+            message: expect.stringMatching(/cannot reuse/i),
+        });
         expect(userService.updateUserPassword).not.toHaveBeenCalled();
     });
 
@@ -323,9 +300,7 @@ describe("changePassword", () => {
         const req = { body: { currentPassword: "OldStr0ng!Pass1" }, user: { sub: 1 } };
         const res = mockRes();
 
-        await authControllers.changePassword(req, res);
-
-        expect(res.statusCode).toBe(400);
+        await expect(authControllers.changePassword(req, res)).rejects.toMatchObject({ statusCode: 400 });
         expect(userService.findUserByIdWithPassword).not.toHaveBeenCalled();
     });
 
@@ -333,9 +308,7 @@ describe("changePassword", () => {
         const req = { body: { currentPassword: 12345, newPassword: "NewStr0ng!Pass2" }, user: { sub: 1 } };
         const res = mockRes();
 
-        await authControllers.changePassword(req, res);
-
-        expect(res.statusCode).toBe(400);
+        await expect(authControllers.changePassword(req, res)).rejects.toMatchObject({ statusCode: 400 });
         expect(userService.findUserByIdWithPassword).not.toHaveBeenCalled();
     });
 
@@ -343,9 +316,7 @@ describe("changePassword", () => {
         const req = { body: { currentPassword: "OldStr0ng!Pass1", newPassword: "weak" }, user: { sub: 1 } };
         const res = mockRes();
 
-        await authControllers.changePassword(req, res);
-
-        expect(res.statusCode).toBe(400);
+        await expect(authControllers.changePassword(req, res)).rejects.toMatchObject({ statusCode: 400 });
         expect(userService.findUserByIdWithPassword).not.toHaveBeenCalled();
     });
 
@@ -354,9 +325,7 @@ describe("changePassword", () => {
         const req = { body: { currentPassword: "OldStr0ng!Pass1", newPassword: "NewStr0ng!Pass2" }, user: { sub: 1 } };
         const res = mockRes();
 
-        await authControllers.changePassword(req, res);
-
-        expect(res.statusCode).toBe(404);
+        await expect(authControllers.changePassword(req, res)).rejects.toMatchObject({ statusCode: 404 });
     });
 
     test("rejects an incorrect current password without updating anything", async () => {
@@ -365,9 +334,7 @@ describe("changePassword", () => {
         const req = { body: { currentPassword: "WrongPass1!", newPassword: "NewStr0ng!Pass2" }, user: { sub: 1 } };
         const res = mockRes();
 
-        await authControllers.changePassword(req, res);
-
-        expect(res.statusCode).toBe(401);
+        await expect(authControllers.changePassword(req, res)).rejects.toMatchObject({ statusCode: 401 });
         expect(userService.updateUserPassword).not.toHaveBeenCalled();
     });
 
@@ -378,10 +345,10 @@ describe("changePassword", () => {
         const req = { body: { currentPassword: "OldStr0ng!Pass1", newPassword: "ReusedStr0ng!Pass1" }, user: { sub: 1 } };
         const res = mockRes();
 
-        await authControllers.changePassword(req, res);
-
-        expect(res.statusCode).toBe(400);
-        expect(res.body.error).toMatch(/cannot reuse/i);
+        await expect(authControllers.changePassword(req, res)).rejects.toMatchObject({
+            statusCode: 400,
+            message: expect.stringMatching(/cannot reuse/i),
+        });
         expect(userService.updateUserPassword).not.toHaveBeenCalled();
     });
 
@@ -408,9 +375,7 @@ describe("getProfile", () => {
         const req = { user: { sub: 1 } };
         const res = mockRes();
 
-        await authControllers.getProfile(req, res);
-
-        expect(res.statusCode).toBe(404);
+        await expect(authControllers.getProfile(req, res)).rejects.toMatchObject({ statusCode: 404 });
     });
 
     test("returns profile fields for an existing user", async () => {
@@ -436,9 +401,7 @@ describe("getDashboard", () => {
         const req = { user: { sub: 1 } };
         const res = mockRes();
 
-        await authControllers.getDashboard(req, res);
-
-        expect(res.statusCode).toBe(404);
+        await expect(authControllers.getDashboard(req, res)).rejects.toMatchObject({ statusCode: 404 });
     });
 
     test("returns base fields with no stats for an Employee", async () => {

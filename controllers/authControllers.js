@@ -7,6 +7,7 @@ const passwordHistoryService = require("../services/passwordHistoryService");
 const { validateRegistrationInput, validateEmail, validatePassword, isNonEmptyString } = require("../utils/validators");
 const { generateResetToken, hashResetToken } = require("../utils/tokens");
 const { ROLES } = require("../middleware/authorize");
+const { ValidationError, AuthError, NotFoundError, ConflictError } = require("../utils/errors");
 const logger = require("../utils/logger");
 
 const BCRYPT_SALT_ROUNDS = 12;
@@ -29,234 +30,199 @@ async function isPasswordReused(userId, plainPassword) {
 }
 
 exports.register = async (req, res) => {
-    try {
-        const { username, email, password } = req.body || {};
+    const { username, email, password } = req.body || {};
 
-        const validationError = validateRegistrationInput({ username, email, password });
-        if (validationError) {
-            return res.status(400).json({ error: validationError });
-        }
-
-        const existing = await userService.findUserByUsernameOrEmail(username, email);
-        if (existing) {
-            return res.status(409).json({ error: "Username or email is already in use" });
-        }
-
-        const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
-        const newUser = await userService.createUser({ username, email, passwordHash });
-        await passwordHistoryService.addPasswordToHistory(newUser.id, passwordHash);
-
-        logger.logRegistration(req, { username, email });
-
-        res.status(201).json({ message: "User registered successfully" });
-    } catch (err) {
-        logger.logError(req, err);
-        res.status(500).json({ error: "Server error" });
+    const validationError = validateRegistrationInput({ username, email, password });
+    if (validationError) {
+        throw new ValidationError(validationError);
     }
+
+    const existing = await userService.findUserByUsernameOrEmail(username, email);
+    if (existing) {
+        throw new ConflictError("Username or email is already in use");
+    }
+
+    const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
+    const newUser = await userService.createUser({ username, email, passwordHash });
+    await passwordHistoryService.addPasswordToHistory(newUser.id, passwordHash);
+
+    logger.logRegistration(req, { username, email });
+
+    res.status(201).json({ message: "User registered successfully" });
 };
 
 exports.login = async (req, res) => {
-    try {
-        const { username, password } = req.body || {};
+    const { username, password } = req.body || {};
 
-        if (!isNonEmptyString(username) || !isNonEmptyString(password)) {
-            return res.status(400).json({ error: "Username and password are required" });
-        }
-
-        const user = await userService.findUserByUsername(username);
-
-        if (!user) {
-            await bcrypt.compare(password, DUMMY_HASH);
-            logger.logLoginFailure(req, { username, reason: "unknown_user" });
-            return res.status(401).json({ error: "Invalid username or password" });
-        }
-
-        if (userService.isAccountLocked(user)) {
-            logger.logLoginFailure(req, { username, reason: "account_locked" });
-            return res.status(423).json({ error: "Account temporarily locked due to repeated failed logins. Try again later." });
-        }
-
-        const isMatch = await bcrypt.compare(password, user.PASSWORD_HASH);
-
-        if (!isMatch) {
-            await userService.recordFailedLogin(user.ID, user.FAILED_ATTEMPTS);
-            logger.logLoginFailure(req, { username, reason: "invalid_password" });
-            return res.status(401).json({ error: "Invalid username or password" });
-        }
-
-        await userService.resetFailedLogin(user.ID);
-
-        const token = jwt.sign(
-            { sub: user.ID, username: user.USERNAME },
-            process.env.JWT_SECRET,
-            { expiresIn: JWT_EXPIRES_IN }
-        );
-
-        logger.logLoginSuccess(req, { username });
-
-        res.json({ token });
-    } catch (err) {
-        logger.logError(req, err);
-        res.status(500).json({ error: "Server error" });
+    if (!isNonEmptyString(username) || !isNonEmptyString(password)) {
+        throw new ValidationError("Username and password are required");
     }
+
+    const user = await userService.findUserByUsername(username);
+
+    if (!user) {
+        await bcrypt.compare(password, DUMMY_HASH);
+        logger.logLoginFailure(req, { username, reason: "unknown_user" });
+        throw new AuthError("Invalid username or password", 401);
+    }
+
+    if (userService.isAccountLocked(user)) {
+        logger.logLoginFailure(req, { username, reason: "account_locked" });
+        throw new AuthError("Account temporarily locked due to repeated failed logins. Try again later.", 423);
+    }
+
+    const isMatch = await bcrypt.compare(password, user.PASSWORD_HASH);
+
+    if (!isMatch) {
+        await userService.recordFailedLogin(user.ID, user.FAILED_ATTEMPTS);
+        logger.logLoginFailure(req, { username, reason: "invalid_password" });
+        throw new AuthError("Invalid username or password", 401);
+    }
+
+    await userService.resetFailedLogin(user.ID);
+
+    const token = jwt.sign(
+        { sub: user.ID, username: user.USERNAME },
+        process.env.JWT_SECRET,
+        { expiresIn: JWT_EXPIRES_IN }
+    );
+
+    logger.logLoginSuccess(req, { username });
+
+    res.json({ token });
 };
 
 exports.forgotPassword = async (req, res) => {
-    try {
-        const { email } = req.body || {};
+    const { email } = req.body || {};
 
-        if (!validateEmail(email)) {
-            return res.status(400).json({ error: "A valid email address is required" });
-        }
-
-        const user = await userService.findUserByEmail(email);
-
-        if (user) {
-            const token = generateResetToken();
-            const tokenHash = hashResetToken(token);
-            await passwordResetService.createResetToken(user.ID, tokenHash);
-
-            // Stand-in for a real email provider: log the link the user would receive.
-            console.log(`Password reset requested for ${email}. Reset link: /?token=${token}`);
-        }
-
-        // Same response whether or not the email is registered, so this endpoint
-        // can't be used to enumerate valid accounts.
-        res.json({ message: "If that email is registered, a password reset link has been sent." });
-    } catch (err) {
-        logger.logError(req, err);
-        res.status(500).json({ error: "Server error" });
+    if (!validateEmail(email)) {
+        throw new ValidationError("A valid email address is required");
     }
+
+    const user = await userService.findUserByEmail(email);
+
+    if (user) {
+        const token = generateResetToken();
+        const tokenHash = hashResetToken(token);
+        await passwordResetService.createResetToken(user.ID, tokenHash);
+
+        // Stand-in for a real email provider: log the link the user would receive.
+        console.log(`Password reset requested for ${email}. Reset link: /?token=${token}`);
+    }
+
+    // Same response whether or not the email is registered, so this endpoint
+    // can't be used to enumerate valid accounts.
+    res.json({ message: "If that email is registered, a password reset link has been sent." });
 };
 
 exports.resetPassword = async (req, res) => {
-    try {
-        const { token, password } = req.body || {};
+    const { token, password } = req.body || {};
 
-        if (!token || typeof token !== "string") {
-            return res.status(400).json({ error: "Reset token is required" });
-        }
-
-        if (!validatePassword(password)) {
-            return res.status(400).json({ error: "Password must be 8-128 characters and include an uppercase letter, a lowercase letter, a number, and a special character" });
-        }
-
-        const tokenHash = hashResetToken(token);
-        const tokenRow = await passwordResetService.findValidResetToken(tokenHash);
-
-        if (!passwordResetService.isTokenValid(tokenRow)) {
-            return res.status(400).json({ error: "Reset link is invalid or has expired" });
-        }
-
-        if (await isPasswordReused(tokenRow.USER_ID, password)) {
-            return res.status(400).json({ error: `You cannot reuse any of your last ${passwordHistoryService.HISTORY_LIMIT} passwords` });
-        }
-
-        const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
-        await userService.updateUserPassword(tokenRow.USER_ID, passwordHash);
-        await passwordHistoryService.addPasswordToHistory(tokenRow.USER_ID, passwordHash);
-        await passwordResetService.markTokenUsed(tokenRow.ID);
-
-        res.json({ message: "Password has been reset successfully" });
-    } catch (err) {
-        logger.logError(req, err);
-        res.status(500).json({ error: "Server error" });
+    if (!token || typeof token !== "string") {
+        throw new ValidationError("Reset token is required");
     }
+
+    if (!validatePassword(password)) {
+        throw new ValidationError("Password must be 8-128 characters and include an uppercase letter, a lowercase letter, a number, and a special character");
+    }
+
+    const tokenHash = hashResetToken(token);
+    const tokenRow = await passwordResetService.findValidResetToken(tokenHash);
+
+    if (!passwordResetService.isTokenValid(tokenRow)) {
+        throw new ValidationError("Reset link is invalid or has expired");
+    }
+
+    if (await isPasswordReused(tokenRow.USER_ID, password)) {
+        throw new ValidationError(`You cannot reuse any of your last ${passwordHistoryService.HISTORY_LIMIT} passwords`);
+    }
+
+    const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
+    await userService.updateUserPassword(tokenRow.USER_ID, passwordHash);
+    await passwordHistoryService.addPasswordToHistory(tokenRow.USER_ID, passwordHash);
+    await passwordResetService.markTokenUsed(tokenRow.ID);
+
+    res.json({ message: "Password has been reset successfully" });
 };
 
 exports.changePassword = async (req, res) => {
-    try {
-        const { currentPassword, newPassword } = req.body || {};
+    const { currentPassword, newPassword } = req.body || {};
 
-        if (!isNonEmptyString(currentPassword) || !isNonEmptyString(newPassword)) {
-            return res.status(400).json({ error: "Current password and new password are required" });
-        }
-
-        if (!validatePassword(newPassword)) {
-            return res.status(400).json({ error: "Password must be 8-128 characters and include an uppercase letter, a lowercase letter, a number, and a special character" });
-        }
-
-        const user = await userService.findUserByIdWithPassword(req.user.sub);
-
-        if (!user) {
-            return res.status(404).json({ error: "User not found" });
-        }
-
-        const isMatch = await bcrypt.compare(currentPassword, user.PASSWORD_HASH);
-
-        if (!isMatch) {
-            return res.status(401).json({ error: "Current password is incorrect" });
-        }
-
-        if (await isPasswordReused(user.ID, newPassword)) {
-            return res.status(400).json({ error: `You cannot reuse any of your last ${passwordHistoryService.HISTORY_LIMIT} passwords` });
-        }
-
-        const passwordHash = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS);
-        await userService.updateUserPassword(user.ID, passwordHash);
-        await passwordHistoryService.addPasswordToHistory(user.ID, passwordHash);
-
-        res.json({ message: "Password changed successfully" });
-    } catch (err) {
-        logger.logError(req, err);
-        res.status(500).json({ error: "Server error" });
+    if (!isNonEmptyString(currentPassword) || !isNonEmptyString(newPassword)) {
+        throw new ValidationError("Current password and new password are required");
     }
+
+    if (!validatePassword(newPassword)) {
+        throw new ValidationError("Password must be 8-128 characters and include an uppercase letter, a lowercase letter, a number, and a special character");
+    }
+
+    const user = await userService.findUserByIdWithPassword(req.user.sub);
+
+    if (!user) {
+        throw new NotFoundError("User not found");
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.PASSWORD_HASH);
+
+    if (!isMatch) {
+        throw new AuthError("Current password is incorrect", 401);
+    }
+
+    if (await isPasswordReused(user.ID, newPassword)) {
+        throw new ValidationError(`You cannot reuse any of your last ${passwordHistoryService.HISTORY_LIMIT} passwords`);
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS);
+    await userService.updateUserPassword(user.ID, passwordHash);
+    await passwordHistoryService.addPasswordToHistory(user.ID, passwordHash);
+
+    res.json({ message: "Password changed successfully" });
 };
 
 exports.getProfile = async (req, res) => {
-    try {
-        const user = await userService.findUserById(req.user.sub);
+    const user = await userService.findUserById(req.user.sub);
 
-        if (!user) {
-            return res.status(404).json({ error: "User not found" });
-        }
-
-        res.json({
-            username: user.USERNAME,
-            email: user.EMAIL,
-            role: user.ROLE,
-            lastLogin: user.LAST_LOGIN,
-            createdAt: user.CREATED_AT,
-        });
-    } catch (err) {
-        logger.logError(req, err);
-        res.status(500).json({ error: "Server error" });
+    if (!user) {
+        throw new NotFoundError("User not found");
     }
+
+    res.json({
+        username: user.USERNAME,
+        email: user.EMAIL,
+        role: user.ROLE,
+        lastLogin: user.LAST_LOGIN,
+        createdAt: user.CREATED_AT,
+    });
 };
 
 exports.getDashboard = async (req, res) => {
-    try {
-        const user = await userService.findUserById(req.user.sub);
+    const user = await userService.findUserById(req.user.sub);
 
-        if (!user) {
-            return res.status(404).json({ error: "User not found" });
-        }
-
-        const dashboard = {
-            username: user.USERNAME,
-            role: user.ROLE,
-            lastLogin: user.LAST_LOGIN,
-        };
-
-        if (user.ROLE === ROLES.ADMIN || user.ROLE === ROLES.MANAGER) {
-            const roleCounts = await userService.getUserRoleCounts();
-            const usersByRole = Object.values(ROLES).reduce((counts, role) => {
-                counts[role] = 0;
-                return counts;
-            }, {});
-
-            let totalUsers = 0;
-            for (const row of roleCounts) {
-                usersByRole[row.ROLE] = row.CNT;
-                totalUsers += row.CNT;
-            }
-
-            dashboard.stats = { totalUsers, usersByRole };
-        }
-
-        res.json(dashboard);
-    } catch (err) {
-        logger.logError(req, err);
-        res.status(500).json({ error: "Server error" });
+    if (!user) {
+        throw new NotFoundError("User not found");
     }
+
+    const dashboard = {
+        username: user.USERNAME,
+        role: user.ROLE,
+        lastLogin: user.LAST_LOGIN,
+    };
+
+    if (user.ROLE === ROLES.ADMIN || user.ROLE === ROLES.MANAGER) {
+        const roleCounts = await userService.getUserRoleCounts();
+        const usersByRole = Object.values(ROLES).reduce((counts, role) => {
+            counts[role] = 0;
+            return counts;
+        }, {});
+
+        let totalUsers = 0;
+        for (const row of roleCounts) {
+            usersByRole[row.ROLE] = row.CNT;
+            totalUsers += row.CNT;
+        }
+
+        dashboard.stats = { totalUsers, usersByRole };
+    }
+
+    res.json(dashboard);
 };
