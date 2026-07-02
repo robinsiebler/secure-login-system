@@ -181,6 +181,21 @@ input:focus {
     margin: 0.35rem 0 0;
 }
 
+.link-row {
+    text-align: center;
+    font-size: 0.85rem;
+    margin: 0.75rem 0 0;
+}
+
+.link-row a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.link-row a:hover {
+    text-decoration: underline;
+}
+
 button[type="submit"],
 #logout-btn {
     margin-top: 1.25rem;

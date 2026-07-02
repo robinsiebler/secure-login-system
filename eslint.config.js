@@ -32,6 +32,7 @@ module.exports = [
                 fetch: "readonly",
                 sessionStorage: "readonly",
                 localStorage: "readonly",
+                URLSearchParams: "readonly",
             },
         },
     },

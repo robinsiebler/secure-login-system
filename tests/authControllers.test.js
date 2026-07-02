@@ -9,15 +9,25 @@ jest.mock("bcrypt", () => ({
 jest.mock("../services/userService", () => ({
     findUserByUsername: jest.fn(),
     findUserById: jest.fn(),
+    findUserByEmail: jest.fn(),
     findUserByUsernameOrEmail: jest.fn(),
     createUser: jest.fn(),
     isAccountLocked: jest.fn(),
     recordFailedLogin: jest.fn(),
     resetFailedLogin: jest.fn(),
+    updateUserPassword: jest.fn(),
+}));
+
+jest.mock("../services/passwordResetService", () => ({
+    createResetToken: jest.fn(),
+    findValidResetToken: jest.fn(),
+    isTokenValid: jest.fn(),
+    markTokenUsed: jest.fn(),
 }));
 
 const bcrypt = require("bcrypt");
 const userService = require("../services/userService");
+const passwordResetService = require("../services/passwordResetService");
 const authControllers = require("../controllers/authControllers");
 
 function mockRes() {
@@ -138,6 +148,87 @@ describe("login", () => {
 
         expect(userService.resetFailedLogin).toHaveBeenCalledWith(1);
         expect(res.body.token).toEqual(expect.any(String));
+    });
+});
+
+describe("forgotPassword", () => {
+    test("rejects an invalid email without touching the database", async () => {
+        const req = { body: { email: "not-an-email" } };
+        const res = mockRes();
+
+        await authControllers.forgotPassword(req, res);
+
+        expect(res.statusCode).toBe(400);
+        expect(userService.findUserByEmail).not.toHaveBeenCalled();
+    });
+
+    test("creates a reset token when the email is registered", async () => {
+        userService.findUserByEmail.mockResolvedValue({ ID: 1, EMAIL: "robin@example.com" });
+        const req = { body: { email: "robin@example.com" } };
+        const res = mockRes();
+
+        await authControllers.forgotPassword(req, res);
+
+        expect(passwordResetService.createResetToken).toHaveBeenCalledWith(1, expect.any(String));
+        expect(res.body.message).toMatch(/if that email is registered/i);
+    });
+
+    test("gives the same generic response for an unregistered email, without creating a token", async () => {
+        userService.findUserByEmail.mockResolvedValue(null);
+        const req = { body: { email: "ghost@example.com" } };
+        const res = mockRes();
+
+        await authControllers.forgotPassword(req, res);
+
+        expect(passwordResetService.createResetToken).not.toHaveBeenCalled();
+        expect(res.body.message).toMatch(/if that email is registered/i);
+    });
+});
+
+describe("resetPassword", () => {
+    test("requires a token", async () => {
+        const req = { body: { password: "Str0ng!Pass1" } };
+        const res = mockRes();
+
+        await authControllers.resetPassword(req, res);
+
+        expect(res.statusCode).toBe(400);
+    });
+
+    test("rejects a weak new password without looking up the token", async () => {
+        const req = { body: { token: "some-token", password: "weak" } };
+        const res = mockRes();
+
+        await authControllers.resetPassword(req, res);
+
+        expect(res.statusCode).toBe(400);
+        expect(passwordResetService.findValidResetToken).not.toHaveBeenCalled();
+    });
+
+    test("rejects an invalid or expired token", async () => {
+        passwordResetService.findValidResetToken.mockResolvedValue(null);
+        passwordResetService.isTokenValid.mockReturnValue(false);
+        const req = { body: { token: "bad-token", password: "Str0ng!Pass1" } };
+        const res = mockRes();
+
+        await authControllers.resetPassword(req, res);
+
+        expect(res.statusCode).toBe(400);
+        expect(userService.updateUserPassword).not.toHaveBeenCalled();
+    });
+
+    test("updates the password and marks the token used on success", async () => {
+        passwordResetService.findValidResetToken.mockResolvedValue({ ID: 9, USER_ID: 1 });
+        passwordResetService.isTokenValid.mockReturnValue(true);
+        const req = { body: { token: "good-token", password: "Str0ng!Pass1" } };
+        const res = mockRes();
+
+        await authControllers.resetPassword(req, res);
+
+        expect(bcrypt.hash).toHaveBeenCalledWith("Str0ng!Pass1", 12);
+        expect(userService.updateUserPassword).toHaveBeenCalledWith(1, "hashed-password");
+        expect(passwordResetService.markTokenUsed).toHaveBeenCalledWith(9);
+        expect(res.body.message).toMatch(/password has been reset/i);
     });
 });
 

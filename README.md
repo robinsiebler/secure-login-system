@@ -35,7 +35,7 @@ A small, security-focused login system built with Node.js, Express, Oracle Datab
    npm start
    ```
    to run it plainly.
-5. Open `http://localhost:1539` (or whatever `PORT` you set) for the login/register UI.
+5. Open `http://localhost:3000` (or whatever `PORT` you set) for the login/register UI.
 
 ## Environment variables
 
@@ -53,6 +53,8 @@ A small, security-focused login system built with Node.js, Express, Oracle Datab
 | --- | --- | --- | --- |
 | POST | `/api/register` | none | Create a user. Validates username/email/password format and rejects duplicates. |
 | POST | `/api/login` | none | Verify credentials, return a JWT valid for 1 hour. |
+| POST | `/api/forgot-password` | none | Accepts an email; if it belongs to a registered user, generates a one-time reset token. Always returns the same generic message. |
+| POST | `/api/reset-password` | none | Accepts a reset token and new password; validates and hashes the password, updates the user, and invalidates the token. |
 | GET | `/api/profile` | Bearer token | Returns the logged-in user's profile. |
 | GET | `/api/health` | none | Liveness check. |
 
@@ -62,7 +64,8 @@ A small, security-focused login system built with Node.js, Express, Oracle Datab
 - **SQL injection**: all queries use Oracle bind variables — user input is never concatenated into SQL.
 - **Account lockout**: after 5 consecutive failed logins, an account is locked for 15 minutes.
 - **Username enumeration resistance**: unknown-username and wrong-password responses are identical (`"Invalid username or password"`), and a dummy bcrypt comparison runs on unknown usernames so response timing doesn't leak which case occurred.
-- **Rate limiting**: `/register` and `/login` are throttled per-IP via `express-rate-limit`.
+- **Rate limiting**: `/register`, `/login`, `/forgot-password`, and `/reset-password` are all throttled per-IP via `express-rate-limit`.
+- **Password reset tokens**: a random 256-bit token is generated per request; only its SHA-256 hash is stored (see `PASSWORD_RESET_TOKENS` in `sql_queries/create_tables.sql`), so a database leak alone can't be used to reset accounts. Tokens expire after 30 minutes and are single-use (`USED_AT` is set once redeemed). `/forgot-password` returns an identical response whether or not the email is registered, to resist enumeration.
 - **JWTs**: signed with a secret from the environment, 1-hour expiry, verified on every protected request.
 - **Input validation**: username, email, and password format are validated server-side before touching the database (see `utils/validators.js`).
 - **HTTP hardening**: `helmet` sets standard security headers; `cors` is explicit middleware rather than ad-hoc header handling.
@@ -79,4 +82,5 @@ GitHub Actions (`.github/workflows/node-ci.yaml`) runs lint and the Jest unit te
 
 ## Notes
 
+- **No real email provider is configured.** `/forgot-password` does not send an actual email — it logs the reset link (including the token) to the server's console/terminal output instead. To test the reset flow: call `/forgot-password`, then check the terminal running `npm run dev`/`npm start` for a line like `Password reset requested for ... Reset link: /?token=...`. Opening that link (or pasting the token into the "Reset token" field on the frontend) lets you complete the reset.
 - The frontend stores the JWT in `sessionStorage` for simplicity. For a production system, prefer an httpOnly cookie to reduce XSS exposure, with CSRF protection added accordingly.

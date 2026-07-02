@@ -27,6 +27,17 @@ async function findUserById(id) {
     });
 }
 
+async function findUserByEmail(email) {
+    return withConnection(async (conn) => {
+        const result = await conn.execute(
+            `SELECT ID, USERNAME, EMAIL FROM USERS WHERE EMAIL = :email`,
+            { email }
+        );
+
+        return result.rows[0] || null;
+    });
+}
+
 async function findUserByUsernameOrEmail(username, email) {
     return withConnection(async (conn) => {
         const result = await conn.execute(
@@ -75,6 +86,18 @@ async function recordFailedLogin(id, currentFailedAttempts) {
     });
 }
 
+async function updateUserPassword(id, passwordHash) {
+    return withConnection(async (conn) => {
+        await conn.execute(
+            `UPDATE USERS
+             SET PASSWORD_HASH = :passwordHash, FAILED_ATTEMPTS = 0, LOCKED_UNTIL = NULL
+             WHERE ID = :id`,
+            { passwordHash, id },
+            { autoCommit: true }
+        );
+    });
+}
+
 async function resetFailedLogin(id) {
     return withConnection(async (conn) => {
         await conn.execute(
@@ -92,9 +115,11 @@ module.exports = {
     LOCKOUT_MINUTES,
     findUserByUsername,
     findUserById,
+    findUserByEmail,
     findUserByUsernameOrEmail,
     createUser,
     isAccountLocked,
     recordFailedLogin,
     resetFailedLogin,
+    updateUserPassword,
 };
