@@ -2,7 +2,9 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
 const userService = require("../services/userService");
-const { validateRegistrationInput } = require("../utils/validators");
+const passwordResetService = require("../services/passwordResetService");
+const { validateRegistrationInput, validateEmail, validatePassword } = require("../utils/validators");
+const { generateResetToken, hashResetToken } = require("../utils/tokens");
 
 const BCRYPT_SALT_ROUNDS = 12;
 const JWT_EXPIRES_IN = "1h";
@@ -70,6 +72,64 @@ exports.login = async (req, res) => {
         );
 
         res.json({ token });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    }
+};
+
+exports.forgotPassword = async (req, res) => {
+    try {
+        const { email } = req.body || {};
+
+        if (!validateEmail(email)) {
+            return res.status(400).json({ error: "A valid email address is required" });
+        }
+
+        const user = await userService.findUserByEmail(email);
+
+        if (user) {
+            const token = generateResetToken();
+            const tokenHash = hashResetToken(token);
+            await passwordResetService.createResetToken(user.ID, tokenHash);
+
+            // Stand-in for a real email provider: log the link the user would receive.
+            console.log(`Password reset requested for ${email}. Reset link: /?token=${token}`);
+        }
+
+        // Same response whether or not the email is registered, so this endpoint
+        // can't be used to enumerate valid accounts.
+        res.json({ message: "If that email is registered, a password reset link has been sent." });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    }
+};
+
+exports.resetPassword = async (req, res) => {
+    try {
+        const { token, password } = req.body || {};
+
+        if (!token || typeof token !== "string") {
+            return res.status(400).json({ error: "Reset token is required" });
+        }
+
+        if (!validatePassword(password)) {
+            return res.status(400).json({ error: "Password must be 8-128 characters and include an uppercase letter, a lowercase letter, a number, and a special character" });
+        }
+
+        const tokenHash = hashResetToken(token);
+        const tokenRow = await passwordResetService.findValidResetToken(tokenHash);
+
+        if (!passwordResetService.isTokenValid(tokenRow)) {
+            return res.status(400).json({ error: "Reset link is invalid or has expired" });
+        }
+
+        const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
+        await userService.updateUserPassword(tokenRow.USER_ID, passwordHash);
+        await passwordResetService.markTokenUsed(tokenRow.ID);
+
+        res.json({ message: "Password has been reset successfully" });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: "Server error" });

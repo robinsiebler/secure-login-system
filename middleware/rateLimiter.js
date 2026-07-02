@@ -16,4 +16,20 @@ const registerLimiter = rateLimit({
     message: { error: "Too many registration attempts. Please try again later." },
 });
 
-module.exports = { loginLimiter, registerLimiter };
+const forgotPasswordLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many password reset requests. Please try again later." },
+});
+
+const resetPasswordLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many password reset attempts. Please try again later." },
+});
+
+module.exports = { loginLimiter, registerLimiter, forgotPasswordLimiter, resetPasswordLimiter };

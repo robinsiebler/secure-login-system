@@ -22,6 +22,8 @@ const tabButtons = document.querySelectorAll(".tab-btn");
 const panels = {
     login: document.getElementById("login-form"),
     register: document.getElementById("register-form"),
+    forgot: document.getElementById("forgot-password-form"),
+    reset: document.getElementById("reset-password-form"),
     profile: document.getElementById("profile-panel"),
 };
 
@@ -115,6 +117,52 @@ document.getElementById("logout-btn").addEventListener("click", () => {
     showTab("login");
 });
 
+document.getElementById("forgot-password-link").addEventListener("click", (e) => {
+    e.preventDefault();
+    showTab("forgot");
+});
+
+document.querySelectorAll(".back-to-login").forEach((link) => {
+    link.addEventListener("click", (e) => {
+        e.preventDefault();
+        showTab("login");
+    });
+});
+
+document.getElementById("forgot-password-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const messageEl = document.getElementById("forgot-message");
+
+    try {
+        const data = await apiRequest("/forgot-password", {
+            method: "POST",
+            body: JSON.stringify({ email: form.email.value }),
+        });
+        setMessage(messageEl, data.message, "success");
+        form.reset();
+    } catch (err) {
+        setMessage(messageEl, err.message, "error");
+    }
+});
+
+document.getElementById("reset-password-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const messageEl = document.getElementById("reset-message");
+
+    try {
+        const data = await apiRequest("/reset-password", {
+            method: "POST",
+            body: JSON.stringify({ token: form.token.value, password: form.password.value }),
+        });
+        setMessage(messageEl, data.message, "success");
+        form.reset();
+    } catch (err) {
+        setMessage(messageEl, err.message, "error");
+    }
+});
+
 async function loadProfile() {
     const token = sessionStorage.getItem("token");
     if (!token) {
@@ -145,4 +193,13 @@ async function loadProfile() {
     }
 }
 
+function checkResetTokenInUrl() {
+    const token = new URLSearchParams(window.location.search).get("token");
+    if (token) {
+        document.getElementById("reset-token").value = token;
+        showTab("reset");
+    }
+}
+
+checkResetTokenInUrl();
 loadProfile();
