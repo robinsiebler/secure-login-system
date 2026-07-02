@@ -55,6 +55,7 @@ A small, security-focused login system built with Node.js, Express, Oracle Datab
 | POST | `/api/login` | none | Verify credentials, return a JWT valid for 1 hour. |
 | POST | `/api/forgot-password` | none | Accepts an email; if it belongs to a registered user, generates a one-time reset token. Always returns the same generic message. |
 | POST | `/api/reset-password` | none | Accepts a reset token and new password; validates and hashes the password, updates the user, and invalidates the token. |
+| POST | `/api/change-password` | Bearer token | Verifies the current password, validates and hashes the new one, and updates the logged-in user. |
 | GET | `/api/profile` | Bearer token | Returns the logged-in user's profile. |
 | GET | `/api/health` | none | Liveness check. |
 
@@ -64,8 +65,10 @@ A small, security-focused login system built with Node.js, Express, Oracle Datab
 - **SQL injection**: all queries use Oracle bind variables — user input is never concatenated into SQL.
 - **Account lockout**: after 5 consecutive failed logins, an account is locked for 15 minutes.
 - **Username enumeration resistance**: unknown-username and wrong-password responses are identical (`"Invalid username or password"`), and a dummy bcrypt comparison runs on unknown usernames so response timing doesn't leak which case occurred.
-- **Rate limiting**: `/register`, `/login`, `/forgot-password`, and `/reset-password` are all throttled per-IP via `express-rate-limit`.
+- **Rate limiting**: `/register`, `/login`, `/forgot-password`, `/reset-password`, and `/change-password` are all throttled per-IP via `express-rate-limit`.
 - **Password reset tokens**: a random 256-bit token is generated per request; only its SHA-256 hash is stored (see `PASSWORD_RESET_TOKENS` in `sql_queries/create_tables.sql`), so a database leak alone can't be used to reset accounts. Tokens expire after 30 minutes and are single-use (`USED_AT` is set once redeemed). `/forgot-password` returns an identical response whether or not the email is registered, to resist enumeration.
+- **Change password**: requires a valid JWT and the correct current password (verified via `bcrypt.compare`) before a new one is accepted, validated, and hashed. On success the frontend clears the stored token and forces a fresh login.
+- **Password history**: every time a password is set (registration, change, or reset), its hash is appended to `PASSWORD_HISTORY` (see `sql_queries/create_tables.sql`). Change/reset requests are checked against the 5 most recent hashes for that user via `bcrypt.compare`, and rejected if the new password matches any of them — so a user can't "change" their password back to one they just used.
 - **JWTs**: signed with a secret from the environment, 1-hour expiry, verified on every protected request.
 - **Input validation**: username, email, and password format are validated server-side before touching the database (see `utils/validators.js`).
 - **HTTP hardening**: `helmet` sets standard security headers; `cors` is explicit middleware rather than ad-hoc header handling.

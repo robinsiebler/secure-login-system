@@ -9,6 +9,7 @@ jest.mock("bcrypt", () => ({
 jest.mock("../services/userService", () => ({
     findUserByUsername: jest.fn(),
     findUserById: jest.fn(),
+    findUserByIdWithPassword: jest.fn(),
     findUserByEmail: jest.fn(),
     findUserByUsernameOrEmail: jest.fn(),
     createUser: jest.fn(),
@@ -25,9 +26,16 @@ jest.mock("../services/passwordResetService", () => ({
     markTokenUsed: jest.fn(),
 }));
 
+jest.mock("../services/passwordHistoryService", () => ({
+    HISTORY_LIMIT: 5,
+    getRecentPasswordHashes: jest.fn(async () => []),
+    addPasswordToHistory: jest.fn(),
+}));
+
 const bcrypt = require("bcrypt");
 const userService = require("../services/userService");
 const passwordResetService = require("../services/passwordResetService");
+const passwordHistoryService = require("../services/passwordHistoryService");
 const authControllers = require("../controllers/authControllers");
 
 function mockRes() {
@@ -71,8 +79,9 @@ describe("register", () => {
         expect(userService.createUser).not.toHaveBeenCalled();
     });
 
-    test("hashes the password and creates the user on valid, unique input", async () => {
+    test("hashes the password, creates the user, and seeds password history", async () => {
         userService.findUserByUsernameOrEmail.mockResolvedValue(null);
+        userService.createUser.mockResolvedValue({ id: 1, username: "robin99", email: "robin@example.com" });
         const req = { body: { username: "robin99", email: "robin@example.com", password: "Str0ng!Pass1" } };
         const res = mockRes();
 
@@ -84,6 +93,7 @@ describe("register", () => {
             email: "robin@example.com",
             passwordHash: "hashed-password",
         });
+        expect(passwordHistoryService.addPasswordToHistory).toHaveBeenCalledWith(1, "hashed-password");
         expect(res.statusCode).toBe(201);
     });
 });
@@ -217,9 +227,25 @@ describe("resetPassword", () => {
         expect(userService.updateUserPassword).not.toHaveBeenCalled();
     });
 
-    test("updates the password and marks the token used on success", async () => {
+    test("rejects a password that matches recent history, without updating anything", async () => {
         passwordResetService.findValidResetToken.mockResolvedValue({ ID: 9, USER_ID: 1 });
         passwordResetService.isTokenValid.mockReturnValue(true);
+        passwordHistoryService.getRecentPasswordHashes.mockResolvedValue(["old-hash-1"]);
+        bcrypt.compare.mockResolvedValue(true);
+        const req = { body: { token: "good-token", password: "ReusedStr0ng!Pass1" } };
+        const res = mockRes();
+
+        await authControllers.resetPassword(req, res);
+
+        expect(res.statusCode).toBe(400);
+        expect(res.body.error).toMatch(/cannot reuse/i);
+        expect(userService.updateUserPassword).not.toHaveBeenCalled();
+    });
+
+    test("updates the password, records history, and marks the token used on success", async () => {
+        passwordResetService.findValidResetToken.mockResolvedValue({ ID: 9, USER_ID: 1 });
+        passwordResetService.isTokenValid.mockReturnValue(true);
+        passwordHistoryService.getRecentPasswordHashes.mockResolvedValue([]);
         const req = { body: { token: "good-token", password: "Str0ng!Pass1" } };
         const res = mockRes();
 
@@ -227,8 +253,83 @@ describe("resetPassword", () => {
 
         expect(bcrypt.hash).toHaveBeenCalledWith("Str0ng!Pass1", 12);
         expect(userService.updateUserPassword).toHaveBeenCalledWith(1, "hashed-password");
+        expect(passwordHistoryService.addPasswordToHistory).toHaveBeenCalledWith(1, "hashed-password");
         expect(passwordResetService.markTokenUsed).toHaveBeenCalledWith(9);
         expect(res.body.message).toMatch(/password has been reset/i);
+    });
+});
+
+describe("changePassword", () => {
+    test("requires both current and new password", async () => {
+        const req = { body: { currentPassword: "OldStr0ng!Pass1" }, user: { sub: 1 } };
+        const res = mockRes();
+
+        await authControllers.changePassword(req, res);
+
+        expect(res.statusCode).toBe(400);
+        expect(userService.findUserByIdWithPassword).not.toHaveBeenCalled();
+    });
+
+    test("rejects a weak new password without looking up the user", async () => {
+        const req = { body: { currentPassword: "OldStr0ng!Pass1", newPassword: "weak" }, user: { sub: 1 } };
+        const res = mockRes();
+
+        await authControllers.changePassword(req, res);
+
+        expect(res.statusCode).toBe(400);
+        expect(userService.findUserByIdWithPassword).not.toHaveBeenCalled();
+    });
+
+    test("returns 404 when the user no longer exists", async () => {
+        userService.findUserByIdWithPassword.mockResolvedValue(null);
+        const req = { body: { currentPassword: "OldStr0ng!Pass1", newPassword: "NewStr0ng!Pass2" }, user: { sub: 1 } };
+        const res = mockRes();
+
+        await authControllers.changePassword(req, res);
+
+        expect(res.statusCode).toBe(404);
+    });
+
+    test("rejects an incorrect current password without updating anything", async () => {
+        userService.findUserByIdWithPassword.mockResolvedValue({ ID: 1, PASSWORD_HASH: "stored-hash" });
+        bcrypt.compare.mockResolvedValue(false);
+        const req = { body: { currentPassword: "WrongPass1!", newPassword: "NewStr0ng!Pass2" }, user: { sub: 1 } };
+        const res = mockRes();
+
+        await authControllers.changePassword(req, res);
+
+        expect(res.statusCode).toBe(401);
+        expect(userService.updateUserPassword).not.toHaveBeenCalled();
+    });
+
+    test("rejects a new password that matches recent history, without updating anything", async () => {
+        userService.findUserByIdWithPassword.mockResolvedValue({ ID: 1, PASSWORD_HASH: "stored-hash" });
+        passwordHistoryService.getRecentPasswordHashes.mockResolvedValue(["old-hash-1"]);
+        bcrypt.compare.mockResolvedValue(true);
+        const req = { body: { currentPassword: "OldStr0ng!Pass1", newPassword: "ReusedStr0ng!Pass1" }, user: { sub: 1 } };
+        const res = mockRes();
+
+        await authControllers.changePassword(req, res);
+
+        expect(res.statusCode).toBe(400);
+        expect(res.body.error).toMatch(/cannot reuse/i);
+        expect(userService.updateUserPassword).not.toHaveBeenCalled();
+    });
+
+    test("hashes and stores the new password, and records history, on success", async () => {
+        userService.findUserByIdWithPassword.mockResolvedValue({ ID: 1, PASSWORD_HASH: "stored-hash" });
+        passwordHistoryService.getRecentPasswordHashes.mockResolvedValue([]);
+        bcrypt.compare.mockResolvedValue(true);
+        const req = { body: { currentPassword: "OldStr0ng!Pass1", newPassword: "NewStr0ng!Pass2" }, user: { sub: 1 } };
+        const res = mockRes();
+
+        await authControllers.changePassword(req, res);
+
+        expect(bcrypt.compare).toHaveBeenCalledWith("OldStr0ng!Pass1", "stored-hash");
+        expect(bcrypt.hash).toHaveBeenCalledWith("NewStr0ng!Pass2", 12);
+        expect(userService.updateUserPassword).toHaveBeenCalledWith(1, "hashed-password");
+        expect(passwordHistoryService.addPasswordToHistory).toHaveBeenCalledWith(1, "hashed-password");
+        expect(res.body.message).toMatch(/password changed/i);
     });
 });
 
