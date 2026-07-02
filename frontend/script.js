@@ -156,8 +156,36 @@ document.getElementById("reset-password-form").addEventListener("submit", async 
             method: "POST",
             body: JSON.stringify({ token: form.token.value, password: form.password.value }),
         });
-        setMessage(messageEl, data.message, "success");
         form.reset();
+        setMessage(document.getElementById("login-message"), data.message, "success");
+        showTab("login");
+    } catch (err) {
+        setMessage(messageEl, err.message, "error");
+    }
+});
+
+document.getElementById("change-password-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const messageEl = document.getElementById("change-password-message");
+    const token = sessionStorage.getItem("token");
+
+    try {
+        await apiRequest("/change-password", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+                currentPassword: form.currentPassword.value,
+                newPassword: form.newPassword.value,
+            }),
+        });
+        form.reset();
+        sessionStorage.removeItem("token");
+        setMessage(document.getElementById("login-message"), "Password changed. Please log in again.", "success");
+        showTab("login");
     } catch (err) {
         setMessage(messageEl, err.message, "error");
     }

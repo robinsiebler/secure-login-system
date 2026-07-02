@@ -1,3 +1,5 @@
+const oracledb = require("oracledb");
+
 const { withConnection } = require("../database/db");
 
 const MAX_FAILED_ATTEMPTS = 5;
@@ -20,6 +22,17 @@ async function findUserById(id) {
         const result = await conn.execute(
             `SELECT ID, USERNAME, EMAIL, LAST_LOGIN, CREATED_AT
              FROM USERS WHERE ID = :id`,
+            { id }
+        );
+
+        return result.rows[0] || null;
+    });
+}
+
+async function findUserByIdWithPassword(id) {
+    return withConnection(async (conn) => {
+        const result = await conn.execute(
+            `SELECT ID, PASSWORD_HASH FROM USERS WHERE ID = :id`,
             { id }
         );
 
@@ -51,14 +64,20 @@ async function findUserByUsernameOrEmail(username, email) {
 
 async function createUser({ username, email, passwordHash }) {
     return withConnection(async (conn) => {
-        await conn.execute(
+        const result = await conn.execute(
             `INSERT INTO USERS (USERNAME, EMAIL, PASSWORD_HASH)
-             VALUES (:username, :email, :passwordHash)`,
-            { username, email, passwordHash },
+             VALUES (:username, :email, :passwordHash)
+             RETURNING ID INTO :id`,
+            {
+                username,
+                email,
+                passwordHash,
+                id: { dir: oracledb.BIND_OUT, type: oracledb.NUMBER },
+            },
             { autoCommit: true }
         );
 
-        return { username, email };
+        return { id: result.outBinds.id[0], username, email };
     });
 }
 
@@ -115,6 +134,7 @@ module.exports = {
     LOCKOUT_MINUTES,
     findUserByUsername,
     findUserById,
+    findUserByIdWithPassword,
     findUserByEmail,
     findUserByUsernameOrEmail,
     createUser,

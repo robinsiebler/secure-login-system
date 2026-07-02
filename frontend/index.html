@@ -100,6 +100,32 @@
         <section id="profile-panel" class="tab-panel">
             <h1>Profile</h1>
             <dl id="profile-details"></dl>
+
+            <form id="change-password-form">
+                <h1>Change password</h1>
+                <label for="current-password">Current password</label>
+                <div class="password-field">
+                    <input id="current-password" name="currentPassword" type="password" autocomplete="current-password" required />
+                    <button type="button" class="toggle-password" data-target="current-password" aria-label="Show password" aria-pressed="false">
+                        <svg class="icon-eye" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>
+                        <svg class="icon-eye-off" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.86 21.86 0 0 1 5.06-6.06M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a21.9 21.9 0 0 1-3.22 4.66M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                    </button>
+                </div>
+
+                <label for="new-password">New password</label>
+                <div class="password-field">
+                    <input id="new-password" name="newPassword" type="password" autocomplete="new-password" required />
+                    <button type="button" class="toggle-password" data-target="new-password" aria-label="Show password" aria-pressed="false">
+                        <svg class="icon-eye" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>
+                        <svg class="icon-eye-off" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.86 21.86 0 0 1 5.06-6.06M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a21.9 21.9 0 0 1-3.22 4.66M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                    </button>
+                </div>
+                <p class="hint">8+ characters, with uppercase, lowercase, a number, and a special character.</p>
+
+                <button type="submit">Change password</button>
+                <p class="message" id="change-password-message"></p>
+            </form>
+
             <button type="button" id="logout-btn">Log out</button>
         </section>
     </main>

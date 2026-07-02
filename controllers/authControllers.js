@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 
 const userService = require("../services/userService");
 const passwordResetService = require("../services/passwordResetService");
+const passwordHistoryService = require("../services/passwordHistoryService");
 const { validateRegistrationInput, validateEmail, validatePassword } = require("../utils/validators");
 const { generateResetToken, hashResetToken } = require("../utils/tokens");
 
@@ -12,6 +13,18 @@ const JWT_EXPIRES_IN = "1h";
 // Precomputed so a failed login (unknown user) takes roughly as long as a
 // real password comparison, reducing username-enumeration via response timing.
 const DUMMY_HASH = bcrypt.hashSync("timing-attack-mitigation", BCRYPT_SALT_ROUNDS);
+
+async function isPasswordReused(userId, plainPassword) {
+    const recentHashes = await passwordHistoryService.getRecentPasswordHashes(userId);
+
+    for (const hash of recentHashes) {
+        if (await bcrypt.compare(plainPassword, hash)) {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 exports.register = async (req, res) => {
     try {
@@ -28,7 +41,8 @@ exports.register = async (req, res) => {
         }
 
         const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
-        await userService.createUser({ username, email, passwordHash });
+        const newUser = await userService.createUser({ username, email, passwordHash });
+        await passwordHistoryService.addPasswordToHistory(newUser.id, passwordHash);
 
         res.status(201).json({ message: "User registered successfully" });
     } catch (err) {
@@ -125,11 +139,55 @@ exports.resetPassword = async (req, res) => {
             return res.status(400).json({ error: "Reset link is invalid or has expired" });
         }
 
+        if (await isPasswordReused(tokenRow.USER_ID, password)) {
+            return res.status(400).json({ error: `You cannot reuse any of your last ${passwordHistoryService.HISTORY_LIMIT} passwords` });
+        }
+
         const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
         await userService.updateUserPassword(tokenRow.USER_ID, passwordHash);
+        await passwordHistoryService.addPasswordToHistory(tokenRow.USER_ID, passwordHash);
         await passwordResetService.markTokenUsed(tokenRow.ID);
 
         res.json({ message: "Password has been reset successfully" });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    }
+};
+
+exports.changePassword = async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body || {};
+
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ error: "Current password and new password are required" });
+        }
+
+        if (!validatePassword(newPassword)) {
+            return res.status(400).json({ error: "Password must be 8-128 characters and include an uppercase letter, a lowercase letter, a number, and a special character" });
+        }
+
+        const user = await userService.findUserByIdWithPassword(req.user.sub);
+
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
+        }
+
+        const isMatch = await bcrypt.compare(currentPassword, user.PASSWORD_HASH);
+
+        if (!isMatch) {
+            return res.status(401).json({ error: "Current password is incorrect" });
+        }
+
+        if (await isPasswordReused(user.ID, newPassword)) {
+            return res.status(400).json({ error: `You cannot reuse any of your last ${passwordHistoryService.HISTORY_LIMIT} passwords` });
+        }
+
+        const passwordHash = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS);
+        await userService.updateUserPassword(user.ID, passwordHash);
+        await passwordHistoryService.addPasswordToHistory(user.ID, passwordHash);
+
+        res.json({ message: "Password changed successfully" });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: "Server error" });
