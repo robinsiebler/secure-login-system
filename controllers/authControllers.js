@@ -4,7 +4,7 @@ const jwt = require("jsonwebtoken");
 const userService = require("../services/userService");
 const passwordResetService = require("../services/passwordResetService");
 const passwordHistoryService = require("../services/passwordHistoryService");
-const { validateRegistrationInput, validateEmail, validatePassword } = require("../utils/validators");
+const { validateRegistrationInput, validateEmail, validatePassword, isNonEmptyString } = require("../utils/validators");
 const { generateResetToken, hashResetToken } = require("../utils/tokens");
 const { ROLES } = require("../middleware/authorize");
 
@@ -56,8 +56,8 @@ exports.login = async (req, res) => {
     try {
         const { username, password } = req.body || {};
 
-        if (!username || !password) {
-            return res.status(400).json({ error: "Username and password required" });
+        if (!isNonEmptyString(username) || !isNonEmptyString(password)) {
+            return res.status(400).json({ error: "Username and password are required" });
         }
 
         const user = await userService.findUserByUsername(username);
@@ -160,7 +160,7 @@ exports.changePassword = async (req, res) => {
     try {
         const { currentPassword, newPassword } = req.body || {};
 
-        if (!currentPassword || !newPassword) {
+        if (!isNonEmptyString(currentPassword) || !isNonEmptyString(newPassword)) {
             return res.status(400).json({ error: "Current password and new password are required" });
         }
 

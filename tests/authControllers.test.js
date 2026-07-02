@@ -109,6 +109,26 @@ describe("login", () => {
         expect(res.statusCode).toBe(400);
     });
 
+    test("rejects a non-string username without touching the database", async () => {
+        const req = { body: { username: { a: 1 }, password: "whatever" } };
+        const res = mockRes();
+
+        await authControllers.login(req, res);
+
+        expect(res.statusCode).toBe(400);
+        expect(userService.findUserByUsername).not.toHaveBeenCalled();
+    });
+
+    test("rejects a non-string password without touching the database", async () => {
+        const req = { body: { username: "robin99", password: [1, 2, 3] } };
+        const res = mockRes();
+
+        await authControllers.login(req, res);
+
+        expect(res.statusCode).toBe(400);
+        expect(userService.findUserByUsername).not.toHaveBeenCalled();
+    });
+
     test("returns a generic error for an unknown user and still runs a bcrypt compare", async () => {
         userService.findUserByUsername.mockResolvedValue(null);
         bcrypt.compare.mockResolvedValue(false);
@@ -263,6 +283,16 @@ describe("resetPassword", () => {
 describe("changePassword", () => {
     test("requires both current and new password", async () => {
         const req = { body: { currentPassword: "OldStr0ng!Pass1" }, user: { sub: 1 } };
+        const res = mockRes();
+
+        await authControllers.changePassword(req, res);
+
+        expect(res.statusCode).toBe(400);
+        expect(userService.findUserByIdWithPassword).not.toHaveBeenCalled();
+    });
+
+    test("rejects a non-string current password without looking up the user", async () => {
+        const req = { body: { currentPassword: 12345, newPassword: "NewStr0ng!Pass2" }, user: { sub: 1 } };
         const res = mockRes();
 
         await authControllers.changePassword(req, res);

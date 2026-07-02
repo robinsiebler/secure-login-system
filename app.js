@@ -35,6 +35,17 @@ app.use("/api", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/manager", managerRoutes);
 
+// Malformed JSON bodies throw a SyntaxError from body-parser before any route
+// runs; without this handler Express's default error page leaks a stack trace
+// (file paths, dependency versions) to the client.
+app.use((err, req, res, next) => {
+    if (err.type === "entity.parse.failed" || err instanceof SyntaxError) {
+        return res.status(400).json({ error: "Invalid JSON in request body" });
+    }
+
+    next(err);
+});
+
 const server = app.listen(process.env.PORT, () => {
     console.log("Server running on port", process.env.PORT);
 });

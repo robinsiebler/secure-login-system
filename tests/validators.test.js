@@ -1,9 +1,28 @@
 const {
+    isNonEmptyString,
     validateUsername,
     validateEmail,
     validatePassword,
     validateRegistrationInput,
 } = require("../utils/validators");
+
+describe("isNonEmptyString", () => {
+    test("accepts a non-empty string", () => {
+        expect(isNonEmptyString("hello")).toBe(true);
+    });
+
+    test("rejects an empty string", () => {
+        expect(isNonEmptyString("")).toBe(false);
+    });
+
+    test("rejects non-string types", () => {
+        expect(isNonEmptyString(12345)).toBe(false);
+        expect(isNonEmptyString(["a"])).toBe(false);
+        expect(isNonEmptyString({ a: 1 })).toBe(false);
+        expect(isNonEmptyString(null)).toBe(false);
+        expect(isNonEmptyString(undefined)).toBe(false);
+    });
+});
 
 describe("validateUsername", () => {
     test("accepts alphanumeric + underscore, 3-30 chars", () => {
