@@ -10,6 +10,7 @@ const authRoutes = require("./routes/authRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const managerRoutes = require("./routes/managerRoutes");
 const { closePool } = require("./database/db");
+const logger = require("./utils/logger");
 
 const REQUIRED_ENV_VARS = ["PORT", "DB_USER", "DB_PASSWORD", "DB_CONNECTION_STRING", "JWT_SECRET"];
 const missingEnvVars = REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
@@ -43,7 +44,8 @@ app.use((err, req, res, next) => {
         return res.status(400).json({ error: "Invalid JSON in request body" });
     }
 
-    next(err);
+    logger.logError(req, err);
+    res.status(500).json({ error: "Server error" });
 });
 
 const server = app.listen(process.env.PORT, () => {

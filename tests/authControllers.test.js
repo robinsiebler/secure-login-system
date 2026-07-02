@@ -33,10 +33,18 @@ jest.mock("../services/passwordHistoryService", () => ({
     addPasswordToHistory: jest.fn(),
 }));
 
+jest.mock("../utils/logger", () => ({
+    logRegistration: jest.fn(),
+    logLoginSuccess: jest.fn(),
+    logLoginFailure: jest.fn(),
+    logError: jest.fn(),
+}));
+
 const bcrypt = require("bcrypt");
 const userService = require("../services/userService");
 const passwordResetService = require("../services/passwordResetService");
 const passwordHistoryService = require("../services/passwordHistoryService");
+const logger = require("../utils/logger");
 const authControllers = require("../controllers/authControllers");
 
 function mockRes() {
@@ -96,6 +104,20 @@ describe("register", () => {
         });
         expect(passwordHistoryService.addPasswordToHistory).toHaveBeenCalledWith(1, "hashed-password");
         expect(res.statusCode).toBe(201);
+        expect(logger.logRegistration).toHaveBeenCalledWith(req, { username: "robin99", email: "robin@example.com" });
+    });
+
+    test("logs the error and returns 500 if user creation fails unexpectedly", async () => {
+        userService.findUserByUsernameOrEmail.mockResolvedValue(null);
+        const dbError = new Error("connection lost");
+        userService.createUser.mockRejectedValue(dbError);
+        const req = { body: { username: "robin99", email: "robin@example.com", password: "Str0ng!Pass1" } };
+        const res = mockRes();
+
+        await authControllers.register(req, res);
+
+        expect(res.statusCode).toBe(500);
+        expect(logger.logError).toHaveBeenCalledWith(req, dbError);
     });
 });
 
@@ -140,6 +162,7 @@ describe("login", () => {
         expect(res.statusCode).toBe(401);
         expect(res.body.error).toBe("Invalid username or password");
         expect(bcrypt.compare).toHaveBeenCalledWith("whatever", "dummy-hash");
+        expect(logger.logLoginFailure).toHaveBeenCalledWith(req, { username: "ghost", reason: "unknown_user" });
     });
 
     test("returns 423 for a locked account", async () => {
@@ -152,6 +175,7 @@ describe("login", () => {
 
         expect(res.statusCode).toBe(423);
         expect(bcrypt.compare).not.toHaveBeenCalled();
+        expect(logger.logLoginFailure).toHaveBeenCalledWith(req, { username: "robin99", reason: "account_locked" });
     });
 
     test("records a failed attempt and rejects on wrong password", async () => {
@@ -166,6 +190,7 @@ describe("login", () => {
         expect(userService.recordFailedLogin).toHaveBeenCalledWith(1, 2);
         expect(res.statusCode).toBe(401);
         expect(res.body.error).toBe("Invalid username or password");
+        expect(logger.logLoginFailure).toHaveBeenCalledWith(req, { username: "robin99", reason: "invalid_password" });
     });
 
     test("resets failed attempts and issues a JWT on success", async () => {
@@ -179,6 +204,19 @@ describe("login", () => {
 
         expect(userService.resetFailedLogin).toHaveBeenCalledWith(1);
         expect(res.body.token).toEqual(expect.any(String));
+        expect(logger.logLoginSuccess).toHaveBeenCalledWith(req, { username: "robin99" });
+    });
+
+    test("logs the error and returns 500 if the database lookup throws", async () => {
+        const dbError = new Error("connection lost");
+        userService.findUserByUsername.mockRejectedValue(dbError);
+        const req = { body: { username: "robin99", password: "whatever" } };
+        const res = mockRes();
+
+        await authControllers.login(req, res);
+
+        expect(res.statusCode).toBe(500);
+        expect(logger.logError).toHaveBeenCalledWith(req, dbError);
     });
 });
 

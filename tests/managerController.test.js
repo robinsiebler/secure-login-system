@@ -4,6 +4,10 @@ jest.mock("../services/userService", () => ({
     deleteUserById: jest.fn(),
 }));
 
+jest.mock("../utils/logger", () => ({
+    logError: jest.fn(),
+}));
+
 const userService = require("../services/userService");
 const managerController = require("../controllers/managerController");
 

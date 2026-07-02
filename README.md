@@ -83,6 +83,19 @@ A small, security-focused login system built with Node.js, Express, Oracle Datab
 - **Dashboard access**: `GET /api/dashboard` is open to any authenticated user, but the role-aware `stats` block (total users, counts by role) is only computed and included for Admins/Managers — the role is re-read from the database on each request, the same pattern used by `authorizeRoles`. The full user list (`GET /api/admin/users`) remains Admin-only.
 - **Manager scope, enforced server-side**: `middleware/authorize.js`'s `authorizeRoles(ROLES.MANAGER)` gates `/api/manager/*` to Managers only. The list endpoint only ever returns `EMPLOYEE`-role users, and `deleteEmployee` independently re-checks the target's role from the database before deleting — even a crafted request against another Manager's or an Admin's ID is rejected with 403. Managers have no role-change capability at all; that stays exclusively on the Admin-only `PUT /api/admin/users/:id/role` route.
 
+## Logging
+
+`utils/logger.js` writes structured, single-line JSON entries to both the console and `logs/app.log` (directory auto-created on startup; gitignored). Generic HTTP access logging (method/path/status/response-time for every request) still comes from `morgan("dev")` in `app.js` — the logger below is for semantic, security-relevant events on top of that:
+
+| Event | Level | When | Fields |
+| --- | --- | --- | --- |
+| `REGISTRATION` | info | A new account is created | `username`, `email`, `ip` |
+| `LOGIN_SUCCESS` | info | A login succeeds | `username`, `ip` |
+| `LOGIN_FAILURE` | warn | A login is rejected | `username`, `ip`, `reason` (`unknown_user`, `account_locked`, or `invalid_password`) |
+| `ERROR` | error | An unhandled exception hits a route's catch block | `route`, `method`, `ip`, `message`, `stack` |
+
+Passwords and password hashes are never logged. `LOGIN_FAILURE`'s `reason` field is intentionally more specific than the API's response (which always says `"Invalid username or password"` to resist enumeration) — it's only written to the server-side log, not returned to the client, so it doesn't reopen that side channel; it's there so brute-force patterns are visible to whoever reads the log.
+
 ## Roles & bootstrapping the first Admin
 
 Every user has a `ROLE` column (`ADMIN`, `MANAGER`, or `EMPLOYEE`), defaulting to `EMPLOYEE` on registration — the app never lets someone self-register as an Admin. To get your first Admin, register normally through the app, then promote that account directly in the database:
