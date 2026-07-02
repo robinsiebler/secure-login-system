@@ -1,5 +1,6 @@
 const userService = require("../services/userService");
 const { ROLES } = require("../middleware/authorize");
+const logger = require("../utils/logger");
 
 exports.listEmployees = async (req, res) => {
     try {
@@ -16,7 +17,7 @@ exports.listEmployees = async (req, res) => {
             })),
         });
     } catch (err) {
-        console.error(err);
+        logger.logError(req, err);
         res.status(500).json({ error: "Server error" });
     }
 };
@@ -43,7 +44,7 @@ exports.deleteEmployee = async (req, res) => {
 
         res.json({ message: "Employee removed successfully" });
     } catch (err) {
-        console.error(err);
+        logger.logError(req, err);
         res.status(500).json({ error: "Server error" });
     }
 };

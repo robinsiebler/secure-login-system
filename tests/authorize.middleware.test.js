@@ -2,7 +2,12 @@ jest.mock("../services/userService", () => ({
     findUserById: jest.fn(),
 }));
 
+jest.mock("../utils/logger", () => ({
+    logError: jest.fn(),
+}));
+
 const userService = require("../services/userService");
+const logger = require("../utils/logger");
 const { authorizeRoles, ROLES } = require("../middleware/authorize");
 
 function mockRes() {
@@ -82,5 +87,18 @@ describe("authorizeRoles", () => {
 
         expect(res.statusCode).toBe(403);
         expect(next).not.toHaveBeenCalled();
+    });
+
+    test("logs and returns 500 when the role lookup throws", async () => {
+        const dbError = new Error("connection lost");
+        userService.findUserById.mockRejectedValue(dbError);
+        const req = { user: { sub: 1 } };
+        const res = mockRes();
+        const next = jest.fn();
+
+        await authorizeRoles(ROLES.ADMIN)(req, res, next);
+
+        expect(res.statusCode).toBe(500);
+        expect(logger.logError).toHaveBeenCalledWith(req, dbError);
     });
 });

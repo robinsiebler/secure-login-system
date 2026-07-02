@@ -1,4 +1,5 @@
 const userService = require("../services/userService");
+const logger = require("../utils/logger");
 
 const ROLES = { ADMIN: "ADMIN", MANAGER: "MANAGER", EMPLOYEE: "EMPLOYEE" };
 
@@ -18,7 +19,7 @@ function authorizeRoles(...allowedRoles) {
             req.currentUser = user;
             next();
         } catch (err) {
-            console.error(err);
+            logger.logError(req, err);
             res.status(500).json({ error: "Server error" });
         }
     };

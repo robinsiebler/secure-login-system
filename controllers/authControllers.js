@@ -7,6 +7,7 @@ const passwordHistoryService = require("../services/passwordHistoryService");
 const { validateRegistrationInput, validateEmail, validatePassword, isNonEmptyString } = require("../utils/validators");
 const { generateResetToken, hashResetToken } = require("../utils/tokens");
 const { ROLES } = require("../middleware/authorize");
+const logger = require("../utils/logger");
 
 const BCRYPT_SALT_ROUNDS = 12;
 const JWT_EXPIRES_IN = "1h";
@@ -45,9 +46,11 @@ exports.register = async (req, res) => {
         const newUser = await userService.createUser({ username, email, passwordHash });
         await passwordHistoryService.addPasswordToHistory(newUser.id, passwordHash);
 
+        logger.logRegistration(req, { username, email });
+
         res.status(201).json({ message: "User registered successfully" });
     } catch (err) {
-        console.error(err);
+        logger.logError(req, err);
         res.status(500).json({ error: "Server error" });
     }
 };
@@ -64,10 +67,12 @@ exports.login = async (req, res) => {
 
         if (!user) {
             await bcrypt.compare(password, DUMMY_HASH);
+            logger.logLoginFailure(req, { username, reason: "unknown_user" });
             return res.status(401).json({ error: "Invalid username or password" });
         }
 
         if (userService.isAccountLocked(user)) {
+            logger.logLoginFailure(req, { username, reason: "account_locked" });
             return res.status(423).json({ error: "Account temporarily locked due to repeated failed logins. Try again later." });
         }
 
@@ -75,6 +80,7 @@ exports.login = async (req, res) => {
 
         if (!isMatch) {
             await userService.recordFailedLogin(user.ID, user.FAILED_ATTEMPTS);
+            logger.logLoginFailure(req, { username, reason: "invalid_password" });
             return res.status(401).json({ error: "Invalid username or password" });
         }
 
@@ -86,9 +92,11 @@ exports.login = async (req, res) => {
             { expiresIn: JWT_EXPIRES_IN }
         );
 
+        logger.logLoginSuccess(req, { username });
+
         res.json({ token });
     } catch (err) {
-        console.error(err);
+        logger.logError(req, err);
         res.status(500).json({ error: "Server error" });
     }
 };
@@ -116,7 +124,7 @@ exports.forgotPassword = async (req, res) => {
         // can't be used to enumerate valid accounts.
         res.json({ message: "If that email is registered, a password reset link has been sent." });
     } catch (err) {
-        console.error(err);
+        logger.logError(req, err);
         res.status(500).json({ error: "Server error" });
     }
 };
@@ -151,7 +159,7 @@ exports.resetPassword = async (req, res) => {
 
         res.json({ message: "Password has been reset successfully" });
     } catch (err) {
-        console.error(err);
+        logger.logError(req, err);
         res.status(500).json({ error: "Server error" });
     }
 };
@@ -190,7 +198,7 @@ exports.changePassword = async (req, res) => {
 
         res.json({ message: "Password changed successfully" });
     } catch (err) {
-        console.error(err);
+        logger.logError(req, err);
         res.status(500).json({ error: "Server error" });
     }
 };
@@ -211,7 +219,7 @@ exports.getProfile = async (req, res) => {
             createdAt: user.CREATED_AT,
         });
     } catch (err) {
-        console.error(err);
+        logger.logError(req, err);
         res.status(500).json({ error: "Server error" });
     }
 };
@@ -248,7 +256,7 @@ exports.getDashboard = async (req, res) => {
 
         res.json(dashboard);
     } catch (err) {
-        console.error(err);
+        logger.logError(req, err);
         res.status(500).json({ error: "Server error" });
     }
 };
