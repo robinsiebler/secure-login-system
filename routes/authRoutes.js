@@ -17,5 +17,6 @@ router.post("/forgot-password", forgotPasswordLimiter, authController.forgotPass
 router.post("/reset-password", resetPasswordLimiter, authController.resetPassword);
 router.post("/change-password", authenticateToken, changePasswordLimiter, authController.changePassword);
 router.get("/profile", authenticateToken, authController.getProfile);
+router.get("/dashboard", authenticateToken, authController.getDashboard);
 
 module.exports = router;

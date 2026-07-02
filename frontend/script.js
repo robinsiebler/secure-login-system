@@ -24,8 +24,10 @@ const panels = {
     register: document.getElementById("register-form"),
     forgot: document.getElementById("forgot-password-form"),
     reset: document.getElementById("reset-password-form"),
+    dashboard: document.getElementById("dashboard-panel"),
     profile: document.getElementById("profile-panel"),
     admin: document.getElementById("admin-panel"),
+    manager: document.getElementById("manager-panel"),
 };
 
 const ROLE_OPTIONS = ["ADMIN", "MANAGER", "EMPLOYEE"];
@@ -110,16 +112,19 @@ document.getElementById("login-form").addEventListener("submit", async (e) => {
         sessionStorage.setItem("token", data.token);
         setMessage(messageEl, "", "success");
         form.reset();
-        await loadProfile();
+        await loadDashboard();
     } catch (err) {
         setMessage(messageEl, err.message, "error");
     }
 });
 
-document.getElementById("logout-btn").addEventListener("click", () => {
+function logout() {
     sessionStorage.removeItem("token");
     showTab("login");
-});
+}
+
+document.getElementById("logout-btn").addEventListener("click", logout);
+document.getElementById("dashboard-logout-btn").addEventListener("click", logout);
 
 document.getElementById("forgot-password-link").addEventListener("click", (e) => {
     e.preventDefault();
@@ -208,22 +213,15 @@ async function loadProfile() {
 
         currentUsername = profile.username;
 
-        const details = document.getElementById("profile-details");
-        details.textContent = "";
-        [
+        renderDetailList(document.getElementById("profile-details"), [
             ["Username", profile.username],
             ["Email", profile.email],
             ["Role", profile.role],
             ["Last login", profile.lastLogin || "First login"],
-        ].forEach(([label, value]) => {
-            const dt = document.createElement("dt");
-            dt.textContent = label;
-            const dd = document.createElement("dd");
-            dd.textContent = value;
-            details.append(dt, dd);
-        });
+        ]);
 
         document.getElementById("admin-link-row").hidden = profile.role !== "ADMIN";
+        document.getElementById("manager-link-row").hidden = profile.role !== "MANAGER";
 
         showTab("profile");
     } catch {
@@ -237,11 +235,29 @@ document.getElementById("admin-panel-link").addEventListener("click", (e) => {
     loadAdminUsers();
 });
 
+document.getElementById("manager-panel-link").addEventListener("click", (e) => {
+    e.preventDefault();
+    showTab("manager");
+    loadManagerEmployees();
+});
+
 document.querySelectorAll(".back-to-profile").forEach((link) => {
     link.addEventListener("click", (e) => {
         e.preventDefault();
         showTab("profile");
     });
+});
+
+document.querySelectorAll(".back-to-dashboard").forEach((link) => {
+    link.addEventListener("click", (e) => {
+        e.preventDefault();
+        showTab("dashboard");
+    });
+});
+
+document.getElementById("dashboard-profile-link").addEventListener("click", (e) => {
+    e.preventDefault();
+    loadProfile();
 });
 
 function authHeaders() {
@@ -350,6 +366,114 @@ async function deleteUser(id, username) {
     }
 }
 
+async function loadManagerEmployees() {
+    const messageEl = document.getElementById("manager-message");
+    const body = document.getElementById("manager-employees-body");
+
+    try {
+        const data = await apiRequest("/manager/employees", { headers: authHeaders() });
+        body.textContent = "";
+
+        data.employees.forEach((employee) => {
+            body.appendChild(buildManagerEmployeeRow(employee));
+        });
+    } catch (err) {
+        setMessage(messageEl, err.message, "error");
+    }
+}
+
+function buildManagerEmployeeRow(employee) {
+    const tr = document.createElement("tr");
+
+    const usernameTd = document.createElement("td");
+    usernameTd.textContent = employee.username;
+
+    const emailTd = document.createElement("td");
+    emailTd.textContent = employee.email;
+
+    const lastLoginTd = document.createElement("td");
+    lastLoginTd.textContent = employee.lastLogin || "Never";
+
+    const actionsTd = document.createElement("td");
+    actionsTd.className = "row-actions";
+
+    const fireBtn = document.createElement("button");
+    fireBtn.type = "button";
+    fireBtn.className = "btn-small btn-danger";
+    fireBtn.textContent = "Fire";
+    fireBtn.addEventListener("click", () => fireEmployee(employee.id, employee.username));
+    actionsTd.appendChild(fireBtn);
+
+    tr.append(usernameTd, emailTd, lastLoginTd, actionsTd);
+    return tr;
+}
+
+async function fireEmployee(id, username) {
+    if (!window.confirm(`Fire "${username}"? This cannot be undone.`)) {
+        return;
+    }
+
+    const messageEl = document.getElementById("manager-message");
+
+    try {
+        const data = await apiRequest(`/manager/employees/${id}`, {
+            method: "DELETE",
+            headers: authHeaders(),
+        });
+        setMessage(messageEl, data.message, "success");
+        await loadManagerEmployees();
+    } catch (err) {
+        setMessage(messageEl, err.message, "error");
+    }
+}
+
+function renderDetailList(el, entries) {
+    el.textContent = "";
+    entries.forEach(([label, value]) => {
+        const dt = document.createElement("dt");
+        dt.textContent = label;
+        const dd = document.createElement("dd");
+        dd.textContent = value;
+        el.append(dt, dd);
+    });
+}
+
+async function loadDashboard() {
+    const token = sessionStorage.getItem("token");
+    if (!token) {
+        return;
+    }
+
+    try {
+        const dashboard = await apiRequest("/dashboard", {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+
+        currentUsername = dashboard.username;
+
+        document.getElementById("dashboard-welcome").textContent = `Welcome back, ${dashboard.username}!`;
+
+        renderDetailList(document.getElementById("dashboard-details"), [
+            ["Role", dashboard.role],
+            ["Last login", dashboard.lastLogin || "First login"],
+        ]);
+
+        const statsSection = document.getElementById("dashboard-stats");
+        statsSection.hidden = !dashboard.stats;
+
+        if (dashboard.stats) {
+            renderDetailList(document.getElementById("dashboard-stats-details"), [
+                ["Total users", dashboard.stats.totalUsers],
+                ...Object.entries(dashboard.stats.usersByRole),
+            ]);
+        }
+
+        showTab("dashboard");
+    } catch {
+        sessionStorage.removeItem("token");
+    }
+}
+
 function checkResetTokenInUrl() {
     const token = new URLSearchParams(window.location.search).get("token");
     if (token) {
@@ -359,4 +483,4 @@ function checkResetTokenInUrl() {
 }
 
 checkResetTokenInUrl();
-loadProfile();
+loadDashboard();

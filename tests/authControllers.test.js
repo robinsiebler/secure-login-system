@@ -17,6 +17,7 @@ jest.mock("../services/userService", () => ({
     recordFailedLogin: jest.fn(),
     resetFailedLogin: jest.fn(),
     updateUserPassword: jest.fn(),
+    getUserRoleCounts: jest.fn(),
 }));
 
 jest.mock("../services/passwordResetService", () => ({
@@ -358,5 +359,59 @@ describe("getProfile", () => {
 
         expect(res.body.username).toBe("robin99");
         expect(res.body.email).toBe("robin@example.com");
+    });
+});
+
+describe("getDashboard", () => {
+    test("returns 404 when the user no longer exists", async () => {
+        userService.findUserById.mockResolvedValue(null);
+        const req = { user: { sub: 1 } };
+        const res = mockRes();
+
+        await authControllers.getDashboard(req, res);
+
+        expect(res.statusCode).toBe(404);
+    });
+
+    test("returns base fields with no stats for an Employee", async () => {
+        userService.findUserById.mockResolvedValue({ USERNAME: "robin99", ROLE: "EMPLOYEE", LAST_LOGIN: null });
+        const req = { user: { sub: 1 } };
+        const res = mockRes();
+
+        await authControllers.getDashboard(req, res);
+
+        expect(res.body).toEqual({ username: "robin99", role: "EMPLOYEE", lastLogin: null });
+        expect(userService.getUserRoleCounts).not.toHaveBeenCalled();
+    });
+
+    test("includes user-count stats for a Manager", async () => {
+        userService.findUserById.mockResolvedValue({ USERNAME: "mgr1", ROLE: "MANAGER", LAST_LOGIN: null });
+        userService.getUserRoleCounts.mockResolvedValue([
+            { ROLE: "ADMIN", CNT: 1 },
+            { ROLE: "EMPLOYEE", CNT: 3 },
+        ]);
+        const req = { user: { sub: 2 } };
+        const res = mockRes();
+
+        await authControllers.getDashboard(req, res);
+
+        expect(res.body.stats).toEqual({
+            totalUsers: 4,
+            usersByRole: { ADMIN: 1, MANAGER: 0, EMPLOYEE: 3 },
+        });
+    });
+
+    test("includes user-count stats for an Admin", async () => {
+        userService.findUserById.mockResolvedValue({ USERNAME: "admin1", ROLE: "ADMIN", LAST_LOGIN: null });
+        userService.getUserRoleCounts.mockResolvedValue([{ ROLE: "ADMIN", CNT: 1 }]);
+        const req = { user: { sub: 3 } };
+        const res = mockRes();
+
+        await authControllers.getDashboard(req, res);
+
+        expect(res.body.stats).toEqual({
+            totalUsers: 1,
+            usersByRole: { ADMIN: 1, MANAGER: 0, EMPLOYEE: 0 },
+        });
     });
 });

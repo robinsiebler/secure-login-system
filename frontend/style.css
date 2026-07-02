@@ -78,7 +78,8 @@ body {
     transition: background-color 0.2s ease, width 0.2s ease;
 }
 
-.card:has(#admin-panel.active) {
+.card:has(#admin-panel.active),
+.card:has(#manager-panel.active) {
     width: min(720px, 95vw);
 }
 
@@ -201,7 +202,8 @@ input:focus {
 }
 
 button[type="submit"],
-#logout-btn {
+#logout-btn,
+#dashboard-logout-btn {
     margin-top: 1.25rem;
     padding: 0.6rem;
     border: none;
@@ -213,7 +215,8 @@ button[type="submit"],
 }
 
 button[type="submit"]:hover,
-#logout-btn:hover {
+#logout-btn:hover,
+#dashboard-logout-btn:hover {
     background: var(--accent-hover);
 }
 
@@ -231,39 +234,48 @@ button[type="submit"]:hover,
     color: var(--success);
 }
 
-#profile-details {
+.detail-list {
     font-size: 0.9rem;
 }
 
-#profile-details dt {
+.detail-list dt {
     color: var(--muted);
     margin-top: 0.5rem;
 }
 
-#profile-details dd {
+.detail-list dd {
     margin: 0;
     font-weight: 600;
+}
+
+#dashboard-stats {
+    margin-top: 1rem;
+}
+
+#dashboard-stats h2 {
+    font-size: 1rem;
+    margin: 0;
 }
 
 .table-wrap {
     overflow-x: auto;
 }
 
-#admin-users-table {
+.users-table {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.85rem;
 }
 
-#admin-users-table th,
-#admin-users-table td {
+.users-table th,
+.users-table td {
     text-align: left;
     padding: 0.5rem 0.6rem;
     border-bottom: 1px solid var(--tab-border);
     white-space: nowrap;
 }
 
-#admin-users-table th {
+.users-table th {
     color: var(--muted);
     font-weight: 600;
 }

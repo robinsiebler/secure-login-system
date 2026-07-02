@@ -57,10 +57,13 @@ A small, security-focused login system built with Node.js, Express, Oracle Datab
 | POST | `/api/reset-password` | none | Accepts a reset token and new password; validates and hashes the password, updates the user, and invalidates the token. |
 | POST | `/api/change-password` | Bearer token | Verifies the current password, validates and hashes the new one, and updates the logged-in user. |
 | GET | `/api/profile` | Bearer token | Returns the logged-in user's profile, including their role. |
+| GET | `/api/dashboard` | Bearer token | Returns a welcome summary (username, role, last login) for any logged-in user. Admins and Managers additionally get `stats`: total user count and a per-role breakdown. |
 | GET | `/api/health` | none | Liveness check. |
 | GET | `/api/admin/users` | Bearer token, Admin role | Lists all users (id, username, email, role, timestamps — no password hashes). |
 | DELETE | `/api/admin/users/:id` | Bearer token, Admin role | Deletes a user. An admin cannot delete their own account. |
 | PUT | `/api/admin/users/:id/role` | Bearer token, Admin role | Sets a user's role to `ADMIN`, `MANAGER`, or `EMPLOYEE`. An admin cannot change their own role. |
+| GET | `/api/manager/employees` | Bearer token, Manager role | Lists all users with role `EMPLOYEE` (no password hashes). |
+| DELETE | `/api/manager/employees/:id` | Bearer token, Manager role | Removes an employee. Rejected with 403 if the target isn't an `EMPLOYEE` — Managers can't delete other Managers or Admins, and can't change anyone's role. |
 
 ## Security measures
 
@@ -77,6 +80,8 @@ A small, security-focused login system built with Node.js, Express, Oracle Datab
 - **HTTP hardening**: `helmet` sets standard security headers; `cors` is explicit middleware rather than ad-hoc header handling.
 - **Env var validation**: the app refuses to start if `PORT`, `DB_*`, or `JWT_SECRET` are missing.
 - **Role-based access control**: every user has a `ROLE` (`ADMIN`, `MANAGER`, or `EMPLOYEE`; new registrations default to `EMPLOYEE`, the lowest privilege). `middleware/authorize.js`'s `authorizeRoles(...)` re-fetches the user's current role from the database on every request rather than trusting the JWT payload, so a role change (promotion or demotion) takes effect on the user's very next request instead of waiting for their token to expire. Admin-only routes also block an admin from deleting or changing the role of their own account, to avoid accidental lockout.
+- **Dashboard access**: `GET /api/dashboard` is open to any authenticated user, but the role-aware `stats` block (total users, counts by role) is only computed and included for Admins/Managers — the role is re-read from the database on each request, the same pattern used by `authorizeRoles`. The full user list (`GET /api/admin/users`) remains Admin-only.
+- **Manager scope, enforced server-side**: `middleware/authorize.js`'s `authorizeRoles(ROLES.MANAGER)` gates `/api/manager/*` to Managers only. The list endpoint only ever returns `EMPLOYEE`-role users, and `deleteEmployee` independently re-checks the target's role from the database before deleting — even a crafted request against another Manager's or an Admin's ID is rejected with 403. Managers have no role-change capability at all; that stays exclusively on the Admin-only `PUT /api/admin/users/:id/role` route.
 
 ## Roles & bootstrapping the first Admin
 

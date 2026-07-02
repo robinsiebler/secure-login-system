@@ -5,13 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Secure Login System</title>
     <link rel="stylesheet" href="style.css" />
-    <script>
-        (function () {
-            var stored = localStorage.getItem("theme");
-            var theme = stored || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-            document.documentElement.setAttribute("data-theme", theme);
-        })();
-    </script>
+    <script src="theme-init.js"></script>
 </head>
 <body>
     <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Switch to dark mode" aria-pressed="false">
@@ -97,10 +91,25 @@
             <p class="link-row"><a href="#" class="back-to-login">Back to login</a></p>
         </form>
 
+        <section id="dashboard-panel" class="tab-panel">
+            <h1>Dashboard</h1>
+            <p id="dashboard-welcome"></p>
+            <dl id="dashboard-details" class="detail-list"></dl>
+
+            <div id="dashboard-stats" hidden>
+                <h2>User stats</h2>
+                <dl id="dashboard-stats-details" class="detail-list"></dl>
+            </div>
+
+            <p class="link-row"><a href="#" id="dashboard-profile-link">View profile</a></p>
+            <button type="button" id="dashboard-logout-btn">Log out</button>
+        </section>
+
         <section id="profile-panel" class="tab-panel">
             <h1>Profile</h1>
-            <dl id="profile-details"></dl>
+            <dl id="profile-details" class="detail-list"></dl>
             <p class="link-row" id="admin-link-row" hidden><a href="#" id="admin-panel-link">Admin: manage users</a></p>
+            <p class="link-row" id="manager-link-row" hidden><a href="#" id="manager-panel-link">Manager: my employees</a></p>
 
             <form id="change-password-form">
                 <h1>Change password</h1>
@@ -127,6 +136,7 @@
                 <p class="message" id="change-password-message"></p>
             </form>
 
+            <p class="link-row"><a href="#" class="back-to-dashboard">Back to dashboard</a></p>
             <button type="button" id="logout-btn">Log out</button>
         </section>
 
@@ -134,7 +144,7 @@
             <h1>Manage users</h1>
             <p class="message" id="admin-message"></p>
             <div class="table-wrap">
-                <table id="admin-users-table">
+                <table id="admin-users-table" class="users-table">
                     <thead>
                         <tr>
                             <th>Username</th>
@@ -145,6 +155,25 @@
                         </tr>
                     </thead>
                     <tbody id="admin-users-body"></tbody>
+                </table>
+            </div>
+            <p class="link-row"><a href="#" class="back-to-profile">Back to profile</a></p>
+        </section>
+
+        <section id="manager-panel" class="tab-panel">
+            <h1>My employees</h1>
+            <p class="message" id="manager-message"></p>
+            <div class="table-wrap">
+                <table id="manager-employees-table" class="users-table">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Last login</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="manager-employees-body"></tbody>
                 </table>
             </div>
             <p class="link-row"><a href="#" class="back-to-profile">Back to profile</a></p>

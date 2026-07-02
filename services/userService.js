@@ -152,6 +152,27 @@ async function updateUserRole(id, role) {
     });
 }
 
+async function findAllEmployees() {
+    return withConnection(async (conn) => {
+        const result = await conn.execute(
+            `SELECT ID, USERNAME, EMAIL, ROLE, LAST_LOGIN, CREATED_AT
+             FROM USERS WHERE ROLE = 'EMPLOYEE' ORDER BY ID`
+        );
+
+        return result.rows;
+    });
+}
+
+async function getUserRoleCounts() {
+    return withConnection(async (conn) => {
+        const result = await conn.execute(
+            `SELECT ROLE, COUNT(*) AS CNT FROM USERS GROUP BY ROLE`
+        );
+
+        return result.rows;
+    });
+}
+
 async function resetFailedLogin(id) {
     return withConnection(async (conn) => {
         await conn.execute(
@@ -173,6 +194,8 @@ module.exports = {
     findUserByEmail,
     findUserByUsernameOrEmail,
     findAllUsers,
+    findAllEmployees,
+    getUserRoleCounts,
     createUser,
     isAccountLocked,
     recordFailedLogin,
