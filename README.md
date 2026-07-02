@@ -68,7 +68,7 @@ A small, security-focused login system built with Node.js, Express, Oracle Datab
 ## Security measures
 
 - **Password storage**: bcrypt with a cost factor of 12; the client never receives or stores raw passwords.
-- **SQL injection**: all queries use Oracle bind variables — user input is never concatenated into SQL.
+- **SQL injection**: all queries use Oracle bind variables — user input is never concatenated into SQL. Enforced by a static regression test (`tests/sqlInjection.test.js`) that scans every `conn.execute()` call in the codebase and fails the build if any query's SQL text isn't a plain template literal, or contains a `${...}` interpolation.
 - **Account lockout**: after 5 consecutive failed logins, an account is locked for 15 minutes.
 - **Username enumeration resistance**: unknown-username and wrong-password responses are identical (`"Invalid username or password"`), and a dummy bcrypt comparison runs on unknown usernames so response timing doesn't leak which case occurred.
 - **Rate limiting**: `/register`, `/login`, `/forgot-password`, `/reset-password`, and `/change-password` are all throttled per-IP via `express-rate-limit`.
