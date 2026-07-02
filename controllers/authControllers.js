@@ -205,6 +205,7 @@ exports.getProfile = async (req, res) => {
         res.json({
             username: user.USERNAME,
             email: user.EMAIL,
+            role: user.ROLE,
             lastLogin: user.LAST_LOGIN,
             createdAt: user.CREATED_AT,
         });

@@ -25,7 +25,11 @@ const panels = {
     forgot: document.getElementById("forgot-password-form"),
     reset: document.getElementById("reset-password-form"),
     profile: document.getElementById("profile-panel"),
+    admin: document.getElementById("admin-panel"),
 };
+
+const ROLE_OPTIONS = ["ADMIN", "MANAGER", "EMPLOYEE"];
+let currentUsername = null;
 
 function showTab(name) {
     tabButtons.forEach((btn) => btn.classList.toggle("active", btn.dataset.tab === name));
@@ -202,11 +206,14 @@ async function loadProfile() {
             headers: { Authorization: `Bearer ${token}` },
         });
 
+        currentUsername = profile.username;
+
         const details = document.getElementById("profile-details");
         details.textContent = "";
         [
             ["Username", profile.username],
             ["Email", profile.email],
+            ["Role", profile.role],
             ["Last login", profile.lastLogin || "First login"],
         ].forEach(([label, value]) => {
             const dt = document.createElement("dt");
@@ -215,9 +222,131 @@ async function loadProfile() {
             dd.textContent = value;
             details.append(dt, dd);
         });
+
+        document.getElementById("admin-link-row").hidden = profile.role !== "ADMIN";
+
         showTab("profile");
     } catch {
         sessionStorage.removeItem("token");
+    }
+}
+
+document.getElementById("admin-panel-link").addEventListener("click", (e) => {
+    e.preventDefault();
+    showTab("admin");
+    loadAdminUsers();
+});
+
+document.querySelectorAll(".back-to-profile").forEach((link) => {
+    link.addEventListener("click", (e) => {
+        e.preventDefault();
+        showTab("profile");
+    });
+});
+
+function authHeaders() {
+    return { Authorization: `Bearer ${sessionStorage.getItem("token")}` };
+}
+
+async function loadAdminUsers() {
+    const messageEl = document.getElementById("admin-message");
+    const body = document.getElementById("admin-users-body");
+
+    try {
+        const data = await apiRequest("/admin/users", { headers: authHeaders() });
+        body.textContent = "";
+
+        data.users.forEach((user) => {
+            body.appendChild(buildAdminUserRow(user));
+        });
+    } catch (err) {
+        setMessage(messageEl, err.message, "error");
+    }
+}
+
+function buildAdminUserRow(user) {
+    const isSelf = user.username === currentUsername;
+    const tr = document.createElement("tr");
+
+    const usernameTd = document.createElement("td");
+    usernameTd.textContent = user.username;
+
+    const emailTd = document.createElement("td");
+    emailTd.textContent = user.email;
+
+    const roleTd = document.createElement("td");
+    const roleSelect = document.createElement("select");
+    roleSelect.className = "role-select";
+    roleSelect.disabled = isSelf;
+    ROLE_OPTIONS.forEach((role) => {
+        const option = document.createElement("option");
+        option.value = role;
+        option.textContent = role;
+        option.selected = role === user.role;
+        roleSelect.appendChild(option);
+    });
+    roleTd.appendChild(roleSelect);
+
+    const lastLoginTd = document.createElement("td");
+    lastLoginTd.textContent = user.lastLogin || "Never";
+
+    const actionsTd = document.createElement("td");
+    actionsTd.className = "row-actions";
+
+    if (!isSelf) {
+        const saveBtn = document.createElement("button");
+        saveBtn.type = "button";
+        saveBtn.className = "btn-small";
+        saveBtn.textContent = "Save role";
+        saveBtn.addEventListener("click", () => updateUserRole(user.id, roleSelect.value));
+
+        const deleteBtn = document.createElement("button");
+        deleteBtn.type = "button";
+        deleteBtn.className = "btn-small btn-danger";
+        deleteBtn.textContent = "Delete";
+        deleteBtn.addEventListener("click", () => deleteUser(user.id, user.username));
+
+        actionsTd.append(saveBtn, deleteBtn);
+    } else {
+        actionsTd.textContent = "(you)";
+    }
+
+    tr.append(usernameTd, emailTd, roleTd, lastLoginTd, actionsTd);
+    return tr;
+}
+
+async function updateUserRole(id, role) {
+    const messageEl = document.getElementById("admin-message");
+
+    try {
+        const data = await apiRequest(`/admin/users/${id}/role`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json", ...authHeaders() },
+            body: JSON.stringify({ role }),
+        });
+        setMessage(messageEl, data.message, "success");
+        await loadAdminUsers();
+    } catch (err) {
+        setMessage(messageEl, err.message, "error");
+    }
+}
+
+async function deleteUser(id, username) {
+    if (!window.confirm(`Delete user "${username}"? This cannot be undone.`)) {
+        return;
+    }
+
+    const messageEl = document.getElementById("admin-message");
+
+    try {
+        const data = await apiRequest(`/admin/users/${id}`, {
+            method: "DELETE",
+            headers: authHeaders(),
+        });
+        setMessage(messageEl, data.message, "success");
+        await loadAdminUsers();
+    } catch (err) {
+        setMessage(messageEl, err.message, "error");
     }
 }
 

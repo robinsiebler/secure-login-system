@@ -100,6 +100,7 @@
         <section id="profile-panel" class="tab-panel">
             <h1>Profile</h1>
             <dl id="profile-details"></dl>
+            <p class="link-row" id="admin-link-row" hidden><a href="#" id="admin-panel-link">Admin: manage users</a></p>
 
             <form id="change-password-form">
                 <h1>Change password</h1>
@@ -127,6 +128,26 @@
             </form>
 
             <button type="button" id="logout-btn">Log out</button>
+        </section>
+
+        <section id="admin-panel" class="tab-panel">
+            <h1>Manage users</h1>
+            <p class="message" id="admin-message"></p>
+            <div class="table-wrap">
+                <table id="admin-users-table">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Last login</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="admin-users-body"></tbody>
+                </table>
+            </div>
+            <p class="link-row"><a href="#" class="back-to-profile">Back to profile</a></p>
         </section>
     </main>
 
