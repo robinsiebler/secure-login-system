@@ -1,6 +1,10 @@
 const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,30}$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+function isNonEmptyString(value) {
+    return typeof value === "string" && value.length > 0;
+}
+
 function validateUsername(username) {
     return typeof username === "string" && USERNAME_REGEX.test(username);
 }
@@ -39,6 +43,7 @@ function validateRegistrationInput({ username, email, password }) {
 }
 
 module.exports = {
+    isNonEmptyString,
     validateUsername,
     validateEmail,
     validatePassword,
