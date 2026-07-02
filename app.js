@@ -8,6 +8,7 @@ const morgan = require("morgan");
 
 const authRoutes = require("./routes/authRoutes");
 const adminRoutes = require("./routes/adminRoutes");
+const managerRoutes = require("./routes/managerRoutes");
 const { closePool } = require("./database/db");
 
 const REQUIRED_ENV_VARS = ["PORT", "DB_USER", "DB_PASSWORD", "DB_CONNECTION_STRING", "JWT_SECRET"];
@@ -32,6 +33,7 @@ app.get("/api/health", (req, res) => {
 
 app.use("/api", authRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/manager", managerRoutes);
 
 const server = app.listen(process.env.PORT, () => {
     console.log("Server running on port", process.env.PORT);

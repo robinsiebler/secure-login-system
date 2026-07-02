@@ -6,6 +6,7 @@ const passwordResetService = require("../services/passwordResetService");
 const passwordHistoryService = require("../services/passwordHistoryService");
 const { validateRegistrationInput, validateEmail, validatePassword } = require("../utils/validators");
 const { generateResetToken, hashResetToken } = require("../utils/tokens");
+const { ROLES } = require("../middleware/authorize");
 
 const BCRYPT_SALT_ROUNDS = 12;
 const JWT_EXPIRES_IN = "1h";
@@ -209,6 +210,43 @@ exports.getProfile = async (req, res) => {
             lastLogin: user.LAST_LOGIN,
             createdAt: user.CREATED_AT,
         });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
+    }
+};
+
+exports.getDashboard = async (req, res) => {
+    try {
+        const user = await userService.findUserById(req.user.sub);
+
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
+        }
+
+        const dashboard = {
+            username: user.USERNAME,
+            role: user.ROLE,
+            lastLogin: user.LAST_LOGIN,
+        };
+
+        if (user.ROLE === ROLES.ADMIN || user.ROLE === ROLES.MANAGER) {
+            const roleCounts = await userService.getUserRoleCounts();
+            const usersByRole = Object.values(ROLES).reduce((counts, role) => {
+                counts[role] = 0;
+                return counts;
+            }, {});
+
+            let totalUsers = 0;
+            for (const row of roleCounts) {
+                usersByRole[row.ROLE] = row.CNT;
+                totalUsers += row.CNT;
+            }
+
+            dashboard.stats = { totalUsers, usersByRole };
+        }
+
+        res.json(dashboard);
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: "Server error" });
