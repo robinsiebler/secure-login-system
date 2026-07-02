@@ -56,8 +56,11 @@ A small, security-focused login system built with Node.js, Express, Oracle Datab
 | POST | `/api/forgot-password` | none | Accepts an email; if it belongs to a registered user, generates a one-time reset token. Always returns the same generic message. |
 | POST | `/api/reset-password` | none | Accepts a reset token and new password; validates and hashes the password, updates the user, and invalidates the token. |
 | POST | `/api/change-password` | Bearer token | Verifies the current password, validates and hashes the new one, and updates the logged-in user. |
-| GET | `/api/profile` | Bearer token | Returns the logged-in user's profile. |
+| GET | `/api/profile` | Bearer token | Returns the logged-in user's profile, including their role. |
 | GET | `/api/health` | none | Liveness check. |
+| GET | `/api/admin/users` | Bearer token, Admin role | Lists all users (id, username, email, role, timestamps — no password hashes). |
+| DELETE | `/api/admin/users/:id` | Bearer token, Admin role | Deletes a user. An admin cannot delete their own account. |
+| PUT | `/api/admin/users/:id/role` | Bearer token, Admin role | Sets a user's role to `ADMIN`, `MANAGER`, or `EMPLOYEE`. An admin cannot change their own role. |
 
 ## Security measures
 
@@ -73,6 +76,18 @@ A small, security-focused login system built with Node.js, Express, Oracle Datab
 - **Input validation**: username, email, and password format are validated server-side before touching the database (see `utils/validators.js`).
 - **HTTP hardening**: `helmet` sets standard security headers; `cors` is explicit middleware rather than ad-hoc header handling.
 - **Env var validation**: the app refuses to start if `PORT`, `DB_*`, or `JWT_SECRET` are missing.
+- **Role-based access control**: every user has a `ROLE` (`ADMIN`, `MANAGER`, or `EMPLOYEE`; new registrations default to `EMPLOYEE`, the lowest privilege). `middleware/authorize.js`'s `authorizeRoles(...)` re-fetches the user's current role from the database on every request rather than trusting the JWT payload, so a role change (promotion or demotion) takes effect on the user's very next request instead of waiting for their token to expire. Admin-only routes also block an admin from deleting or changing the role of their own account, to avoid accidental lockout.
+
+## Roles & bootstrapping the first Admin
+
+Every user has a `ROLE` column (`ADMIN`, `MANAGER`, or `EMPLOYEE`), defaulting to `EMPLOYEE` on registration — the app never lets someone self-register as an Admin. To get your first Admin, register normally through the app, then promote that account directly in the database:
+
+```sql
+UPDATE USERS SET ROLE = 'ADMIN' WHERE USERNAME = 'your_username';
+COMMIT;
+```
+
+From there, that Admin can promote/demote other users via the "Manage users" panel (or `PUT /api/admin/users/:id/role`) — no more manual SQL needed.
 
 ## Tests & CI
 

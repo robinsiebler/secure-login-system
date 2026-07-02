@@ -75,7 +75,11 @@ body {
     padding: 2rem;
     border-radius: 12px;
     box-shadow: 0 20px 40px var(--shadow);
-    transition: background-color 0.2s ease;
+    transition: background-color 0.2s ease, width 0.2s ease;
+}
+
+.card:has(#admin-panel.active) {
+    width: min(720px, 95vw);
 }
 
 .tabs {
@@ -239,4 +243,64 @@ button[type="submit"]:hover,
 #profile-details dd {
     margin: 0;
     font-weight: 600;
+}
+
+.table-wrap {
+    overflow-x: auto;
+}
+
+#admin-users-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+#admin-users-table th,
+#admin-users-table td {
+    text-align: left;
+    padding: 0.5rem 0.6rem;
+    border-bottom: 1px solid var(--tab-border);
+    white-space: nowrap;
+}
+
+#admin-users-table th {
+    color: var(--muted);
+    font-weight: 600;
+}
+
+.role-select {
+    padding: 0.3rem 0.4rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--card-bg);
+    color: var(--text);
+    font-size: 0.85rem;
+}
+
+.row-actions {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+}
+
+.btn-small {
+    padding: 0.35rem 0.6rem;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    color: white;
+    background: var(--accent);
+}
+
+.btn-small:hover {
+    background: var(--accent-hover);
+}
+
+.btn-small.btn-danger {
+    background: var(--error);
+}
+
+.btn-small.btn-danger:hover {
+    filter: brightness(0.9);
 }

@@ -20,12 +20,23 @@ async function findUserByUsername(username) {
 async function findUserById(id) {
     return withConnection(async (conn) => {
         const result = await conn.execute(
-            `SELECT ID, USERNAME, EMAIL, LAST_LOGIN, CREATED_AT
+            `SELECT ID, USERNAME, EMAIL, ROLE, LAST_LOGIN, CREATED_AT
              FROM USERS WHERE ID = :id`,
             { id }
         );
 
         return result.rows[0] || null;
+    });
+}
+
+async function findAllUsers() {
+    return withConnection(async (conn) => {
+        const result = await conn.execute(
+            `SELECT ID, USERNAME, EMAIL, ROLE, LAST_LOGIN, CREATED_AT
+             FROM USERS ORDER BY ID`
+        );
+
+        return result.rows;
     });
 }
 
@@ -117,6 +128,30 @@ async function updateUserPassword(id, passwordHash) {
     });
 }
 
+async function deleteUserById(id) {
+    return withConnection(async (conn) => {
+        const result = await conn.execute(
+            `DELETE FROM USERS WHERE ID = :id`,
+            { id },
+            { autoCommit: true }
+        );
+
+        return result.rowsAffected > 0;
+    });
+}
+
+async function updateUserRole(id, role) {
+    return withConnection(async (conn) => {
+        const result = await conn.execute(
+            `UPDATE USERS SET ROLE = :role WHERE ID = :id`,
+            { id, role },
+            { autoCommit: true }
+        );
+
+        return result.rowsAffected > 0;
+    });
+}
+
 async function resetFailedLogin(id) {
     return withConnection(async (conn) => {
         await conn.execute(
@@ -137,9 +172,12 @@ module.exports = {
     findUserByIdWithPassword,
     findUserByEmail,
     findUserByUsernameOrEmail,
+    findAllUsers,
     createUser,
     isAccountLocked,
     recordFailedLogin,
     resetFailedLogin,
     updateUserPassword,
+    deleteUserById,
+    updateUserRole,
 };
