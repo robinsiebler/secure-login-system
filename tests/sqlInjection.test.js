@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const SCAN_DIRS = ["services", "database", "controllers", "routes", "middleware"];
+const SCAN_DIRS = ["services", "config", "controllers", "routes", "middleware"];
 const PROJECT_ROOT = path.join(__dirname, "..");
 
 function findJsFiles(dir) {

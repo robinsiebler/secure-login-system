@@ -1,6 +1,6 @@
 const oracledb = require("oracledb");
 
-const { withConnection } = require("../database/db");
+const { withConnection } = require("../config/database");
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_MINUTES = 15;

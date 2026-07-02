@@ -45,7 +45,7 @@ const userService = require("../services/userService");
 const passwordResetService = require("../services/passwordResetService");
 const passwordHistoryService = require("../services/passwordHistoryService");
 const logger = require("../utils/logger");
-const authControllers = require("../controllers/authControllers");
+const authController = require("../controllers/authController");
 
 function mockRes() {
     return {
@@ -71,7 +71,7 @@ describe("register", () => {
         const req = { body: { username: "a", email: "not-an-email", password: "short" } };
         const res = mockRes();
 
-        await expect(authControllers.register(req, res)).rejects.toMatchObject({ statusCode: 400 });
+        await expect(authController.register(req, res)).rejects.toMatchObject({ statusCode: 400 });
         expect(userService.findUserByUsernameOrEmail).not.toHaveBeenCalled();
     });
 
@@ -80,7 +80,7 @@ describe("register", () => {
         const req = { body: { username: "robin99", email: "robin@example.com", password: "Str0ng!Pass1" } };
         const res = mockRes();
 
-        await expect(authControllers.register(req, res)).rejects.toMatchObject({
+        await expect(authController.register(req, res)).rejects.toMatchObject({
             statusCode: 409,
             message: "Username or email is already in use",
         });
@@ -93,7 +93,7 @@ describe("register", () => {
         const req = { body: { username: "robin99", email: "robin@example.com", password: "Str0ng!Pass1" } };
         const res = mockRes();
 
-        await authControllers.register(req, res);
+        await authController.register(req, res);
 
         expect(bcrypt.hash).toHaveBeenCalledWith("Str0ng!Pass1", 12);
         expect(userService.createUser).toHaveBeenCalledWith({
@@ -113,7 +113,7 @@ describe("register", () => {
         const req = { body: { username: "robin99", email: "robin@example.com", password: "Str0ng!Pass1" } };
         const res = mockRes();
 
-        await expect(authControllers.register(req, res)).rejects.toBe(dbError);
+        await expect(authController.register(req, res)).rejects.toBe(dbError);
     });
 });
 
@@ -122,14 +122,14 @@ describe("login", () => {
         const req = { body: { username: "robin99" } };
         const res = mockRes();
 
-        await expect(authControllers.login(req, res)).rejects.toMatchObject({ statusCode: 400 });
+        await expect(authController.login(req, res)).rejects.toMatchObject({ statusCode: 400 });
     });
 
     test("rejects a non-string username without touching the database", async () => {
         const req = { body: { username: { a: 1 }, password: "whatever" } };
         const res = mockRes();
 
-        await expect(authControllers.login(req, res)).rejects.toMatchObject({ statusCode: 400 });
+        await expect(authController.login(req, res)).rejects.toMatchObject({ statusCode: 400 });
         expect(userService.findUserByUsername).not.toHaveBeenCalled();
     });
 
@@ -137,7 +137,7 @@ describe("login", () => {
         const req = { body: { username: "robin99", password: [1, 2, 3] } };
         const res = mockRes();
 
-        await expect(authControllers.login(req, res)).rejects.toMatchObject({ statusCode: 400 });
+        await expect(authController.login(req, res)).rejects.toMatchObject({ statusCode: 400 });
         expect(userService.findUserByUsername).not.toHaveBeenCalled();
     });
 
@@ -147,7 +147,7 @@ describe("login", () => {
         const req = { body: { username: "ghost", password: "whatever" } };
         const res = mockRes();
 
-        await expect(authControllers.login(req, res)).rejects.toMatchObject({
+        await expect(authController.login(req, res)).rejects.toMatchObject({
             statusCode: 401,
             message: "Invalid username or password",
         });
@@ -161,7 +161,7 @@ describe("login", () => {
         const req = { body: { username: "robin99", password: "whatever" } };
         const res = mockRes();
 
-        await expect(authControllers.login(req, res)).rejects.toMatchObject({ statusCode: 423 });
+        await expect(authController.login(req, res)).rejects.toMatchObject({ statusCode: 423 });
         expect(bcrypt.compare).not.toHaveBeenCalled();
         expect(logger.logLoginFailure).toHaveBeenCalledWith(req, { username: "robin99", reason: "account_locked" });
     });
@@ -173,7 +173,7 @@ describe("login", () => {
         const req = { body: { username: "robin99", password: "wrong" } };
         const res = mockRes();
 
-        await expect(authControllers.login(req, res)).rejects.toMatchObject({
+        await expect(authController.login(req, res)).rejects.toMatchObject({
             statusCode: 401,
             message: "Invalid username or password",
         });
@@ -188,7 +188,7 @@ describe("login", () => {
         const req = { body: { username: "robin99", password: "Str0ng!Pass1" } };
         const res = mockRes();
 
-        await authControllers.login(req, res);
+        await authController.login(req, res);
 
         expect(userService.resetFailedLogin).toHaveBeenCalledWith(1);
         expect(res.body.token).toEqual(expect.any(String));
@@ -201,7 +201,7 @@ describe("login", () => {
         const req = { body: { username: "robin99", password: "whatever" } };
         const res = mockRes();
 
-        await expect(authControllers.login(req, res)).rejects.toBe(dbError);
+        await expect(authController.login(req, res)).rejects.toBe(dbError);
     });
 });
 
@@ -210,7 +210,7 @@ describe("forgotPassword", () => {
         const req = { body: { email: "not-an-email" } };
         const res = mockRes();
 
-        await expect(authControllers.forgotPassword(req, res)).rejects.toMatchObject({ statusCode: 400 });
+        await expect(authController.forgotPassword(req, res)).rejects.toMatchObject({ statusCode: 400 });
         expect(userService.findUserByEmail).not.toHaveBeenCalled();
     });
 
@@ -219,7 +219,7 @@ describe("forgotPassword", () => {
         const req = { body: { email: "robin@example.com" } };
         const res = mockRes();
 
-        await authControllers.forgotPassword(req, res);
+        await authController.forgotPassword(req, res);
 
         expect(passwordResetService.createResetToken).toHaveBeenCalledWith(1, expect.any(String));
         expect(res.body.message).toMatch(/if that email is registered/i);
@@ -230,7 +230,7 @@ describe("forgotPassword", () => {
         const req = { body: { email: "ghost@example.com" } };
         const res = mockRes();
 
-        await authControllers.forgotPassword(req, res);
+        await authController.forgotPassword(req, res);
 
         expect(passwordResetService.createResetToken).not.toHaveBeenCalled();
         expect(res.body.message).toMatch(/if that email is registered/i);
@@ -242,14 +242,14 @@ describe("resetPassword", () => {
         const req = { body: { password: "Str0ng!Pass1" } };
         const res = mockRes();
 
-        await expect(authControllers.resetPassword(req, res)).rejects.toMatchObject({ statusCode: 400 });
+        await expect(authController.resetPassword(req, res)).rejects.toMatchObject({ statusCode: 400 });
     });
 
     test("rejects a weak new password without looking up the token", async () => {
         const req = { body: { token: "some-token", password: "weak" } };
         const res = mockRes();
 
-        await expect(authControllers.resetPassword(req, res)).rejects.toMatchObject({ statusCode: 400 });
+        await expect(authController.resetPassword(req, res)).rejects.toMatchObject({ statusCode: 400 });
         expect(passwordResetService.findValidResetToken).not.toHaveBeenCalled();
     });
 
@@ -259,7 +259,7 @@ describe("resetPassword", () => {
         const req = { body: { token: "bad-token", password: "Str0ng!Pass1" } };
         const res = mockRes();
 
-        await expect(authControllers.resetPassword(req, res)).rejects.toMatchObject({ statusCode: 400 });
+        await expect(authController.resetPassword(req, res)).rejects.toMatchObject({ statusCode: 400 });
         expect(userService.updateUserPassword).not.toHaveBeenCalled();
     });
 
@@ -271,7 +271,7 @@ describe("resetPassword", () => {
         const req = { body: { token: "good-token", password: "ReusedStr0ng!Pass1" } };
         const res = mockRes();
 
-        await expect(authControllers.resetPassword(req, res)).rejects.toMatchObject({
+        await expect(authController.resetPassword(req, res)).rejects.toMatchObject({
             statusCode: 400,
             message: expect.stringMatching(/cannot reuse/i),
         });
@@ -285,7 +285,7 @@ describe("resetPassword", () => {
         const req = { body: { token: "good-token", password: "Str0ng!Pass1" } };
         const res = mockRes();
 
-        await authControllers.resetPassword(req, res);
+        await authController.resetPassword(req, res);
 
         expect(bcrypt.hash).toHaveBeenCalledWith("Str0ng!Pass1", 12);
         expect(userService.updateUserPassword).toHaveBeenCalledWith(1, "hashed-password");
@@ -300,7 +300,7 @@ describe("changePassword", () => {
         const req = { body: { currentPassword: "OldStr0ng!Pass1" }, user: { sub: 1 } };
         const res = mockRes();
 
-        await expect(authControllers.changePassword(req, res)).rejects.toMatchObject({ statusCode: 400 });
+        await expect(authController.changePassword(req, res)).rejects.toMatchObject({ statusCode: 400 });
         expect(userService.findUserByIdWithPassword).not.toHaveBeenCalled();
     });
 
@@ -308,7 +308,7 @@ describe("changePassword", () => {
         const req = { body: { currentPassword: 12345, newPassword: "NewStr0ng!Pass2" }, user: { sub: 1 } };
         const res = mockRes();
 
-        await expect(authControllers.changePassword(req, res)).rejects.toMatchObject({ statusCode: 400 });
+        await expect(authController.changePassword(req, res)).rejects.toMatchObject({ statusCode: 400 });
         expect(userService.findUserByIdWithPassword).not.toHaveBeenCalled();
     });
 
@@ -316,7 +316,7 @@ describe("changePassword", () => {
         const req = { body: { currentPassword: "OldStr0ng!Pass1", newPassword: "weak" }, user: { sub: 1 } };
         const res = mockRes();
 
-        await expect(authControllers.changePassword(req, res)).rejects.toMatchObject({ statusCode: 400 });
+        await expect(authController.changePassword(req, res)).rejects.toMatchObject({ statusCode: 400 });
         expect(userService.findUserByIdWithPassword).not.toHaveBeenCalled();
     });
 
@@ -325,7 +325,7 @@ describe("changePassword", () => {
         const req = { body: { currentPassword: "OldStr0ng!Pass1", newPassword: "NewStr0ng!Pass2" }, user: { sub: 1 } };
         const res = mockRes();
 
-        await expect(authControllers.changePassword(req, res)).rejects.toMatchObject({ statusCode: 404 });
+        await expect(authController.changePassword(req, res)).rejects.toMatchObject({ statusCode: 404 });
     });
 
     test("rejects an incorrect current password without updating anything", async () => {
@@ -334,7 +334,7 @@ describe("changePassword", () => {
         const req = { body: { currentPassword: "WrongPass1!", newPassword: "NewStr0ng!Pass2" }, user: { sub: 1 } };
         const res = mockRes();
 
-        await expect(authControllers.changePassword(req, res)).rejects.toMatchObject({ statusCode: 401 });
+        await expect(authController.changePassword(req, res)).rejects.toMatchObject({ statusCode: 401 });
         expect(userService.updateUserPassword).not.toHaveBeenCalled();
     });
 
@@ -345,7 +345,7 @@ describe("changePassword", () => {
         const req = { body: { currentPassword: "OldStr0ng!Pass1", newPassword: "ReusedStr0ng!Pass1" }, user: { sub: 1 } };
         const res = mockRes();
 
-        await expect(authControllers.changePassword(req, res)).rejects.toMatchObject({
+        await expect(authController.changePassword(req, res)).rejects.toMatchObject({
             statusCode: 400,
             message: expect.stringMatching(/cannot reuse/i),
         });
@@ -359,7 +359,7 @@ describe("changePassword", () => {
         const req = { body: { currentPassword: "OldStr0ng!Pass1", newPassword: "NewStr0ng!Pass2" }, user: { sub: 1 } };
         const res = mockRes();
 
-        await authControllers.changePassword(req, res);
+        await authController.changePassword(req, res);
 
         expect(bcrypt.compare).toHaveBeenCalledWith("OldStr0ng!Pass1", "stored-hash");
         expect(bcrypt.hash).toHaveBeenCalledWith("NewStr0ng!Pass2", 12);
@@ -375,7 +375,7 @@ describe("getProfile", () => {
         const req = { user: { sub: 1 } };
         const res = mockRes();
 
-        await expect(authControllers.getProfile(req, res)).rejects.toMatchObject({ statusCode: 404 });
+        await expect(authController.getProfile(req, res)).rejects.toMatchObject({ statusCode: 404 });
     });
 
     test("returns profile fields for an existing user", async () => {
@@ -388,7 +388,7 @@ describe("getProfile", () => {
         const req = { user: { sub: 1 } };
         const res = mockRes();
 
-        await authControllers.getProfile(req, res);
+        await authController.getProfile(req, res);
 
         expect(res.body.username).toBe("robin99");
         expect(res.body.email).toBe("robin@example.com");
@@ -401,7 +401,7 @@ describe("getDashboard", () => {
         const req = { user: { sub: 1 } };
         const res = mockRes();
 
-        await expect(authControllers.getDashboard(req, res)).rejects.toMatchObject({ statusCode: 404 });
+        await expect(authController.getDashboard(req, res)).rejects.toMatchObject({ statusCode: 404 });
     });
 
     test("returns base fields with no stats for an Employee", async () => {
@@ -409,7 +409,7 @@ describe("getDashboard", () => {
         const req = { user: { sub: 1 } };
         const res = mockRes();
 
-        await authControllers.getDashboard(req, res);
+        await authController.getDashboard(req, res);
 
         expect(res.body).toEqual({ username: "robin99", role: "EMPLOYEE", lastLogin: null });
         expect(userService.getUserRoleCounts).not.toHaveBeenCalled();
@@ -424,7 +424,7 @@ describe("getDashboard", () => {
         const req = { user: { sub: 2 } };
         const res = mockRes();
 
-        await authControllers.getDashboard(req, res);
+        await authController.getDashboard(req, res);
 
         expect(res.body.stats).toEqual({
             totalUsers: 4,
@@ -438,7 +438,7 @@ describe("getDashboard", () => {
         const req = { user: { sub: 3 } };
         const res = mockRes();
 
-        await authControllers.getDashboard(req, res);
+        await authController.getDashboard(req, res);
 
         expect(res.body.stats).toEqual({
             totalUsers: 1,

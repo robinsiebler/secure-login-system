@@ -1,4 +1,4 @@
-const { withConnection } = require("../database/db");
+const { withConnection } = require("../config/database");
 
 const HISTORY_LIMIT = 5;
 
