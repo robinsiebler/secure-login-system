@@ -1,4 +1,4 @@
-# Login Security Lab
+# Secure Login System
 
 A small, security-focused login system built with Node.js, Express, Oracle Database, bcrypt, and JWT.
 
