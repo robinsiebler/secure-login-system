@@ -130,7 +130,16 @@ npm run lint
 npm test
 ```
 
-GitHub Actions (`.github/workflows/node-ci.yaml`) runs lint and the Jest unit test suite on every push/PR to `main`. The test suite covers validation logic and JWT middleware only — it does not require a live Oracle connection, since Oracle isn't readily available as a CI service.
+GitHub Actions (`.github/workflows/node-ci.yml`) runs lint and the Jest unit test suite on every push/PR to `main`. The test suite covers validation logic and JWT middleware only — it does not require a live Oracle connection, since Oracle isn't readily available as a CI service.
+
+## Postman Collection
+
+`postman/login-security-lab.postman_collection.json` covers every endpoint in the table above, organized into Health / Auth / Admin / Manager folders. Import it into Postman (or run it headlessly with [Newman](https://www.npmjs.com/package/newman), Postman's CLI runner: `npx newman run postman/login-security-lab.postman_collection.json`) against a locally running instance of the app.
+
+- `baseUrl` defaults to `http://localhost:4000` — update the collection variable if your `PORT` differs.
+- The Auth folder is self-contained: "Register" generates a fresh unique username/email each run and "Login" auto-saves the returned JWT into the `token` variable, so Profile/Dashboard/Change Password work immediately after. "Reset Password" needs a real token pasted into `resetToken` from the server's console log (see Notes below) since there's no email provider to read it from automatically.
+- The Admin and Manager folders need real credentials for an already-privileged account in `adminUsername`/`adminPassword` and `managerUsername`/`managerPassword` — this API has no self-promotion endpoint (see "Roles & bootstrapping the first Admin" above), so the collection can't create one for you. Set `targetUserId` to a real user ID (e.g. from a "List Users"/"List Employees" response) before running Update Role / Delete.
+- Every request has a basic status-code assertion so a full run (or `newman run`) doubles as a quick smoke test — this is a local-testing aid, though, not something wired into CI.
 
 ## Notes
 

@@ -1,0 +1,383 @@
+{
+    "info": {
+        "name": "Login Security Lab",
+        "description": "Covers every API endpoint in the Login Security Lab. Run the app locally first (`npm run dev` / `npm start`) and point `baseUrl` at it.\n\nSuggested run order:\n1. Health Check\n2. Auth > Register -> Login (auto-saves {{token}}) -> Profile / Dashboard / Change Password\n3. Auth > Forgot Password -> paste the token the server logs to its console into {{resetToken}} -> Reset Password\n4. Admin / Manager folders need an already-privileged account, since new registrations default to EMPLOYEE and this API has no self-promotion endpoint (see README's \"Roles & bootstrapping the first Admin\"). Fill in {{adminUsername}}/{{adminPassword}} and {{managerUsername}}/{{managerPassword}} with real accounts, run their \"Login as ...\" request, then set {{targetUserId}} to a real user id from a \"List\" response before trying Delete/Update Role.",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        { "key": "baseUrl", "value": "http://localhost:4000" },
+        { "key": "testUsername", "value": "" },
+        { "key": "testEmail", "value": "" },
+        { "key": "testPassword", "value": "Str0ng!Pass1" },
+        { "key": "newPassword", "value": "Ev3nStr0nger!Pass" },
+        { "key": "token", "value": "" },
+        { "key": "resetToken", "value": "" },
+        { "key": "adminUsername", "value": "" },
+        { "key": "adminPassword", "value": "" },
+        { "key": "adminToken", "value": "" },
+        { "key": "managerUsername", "value": "" },
+        { "key": "managerPassword", "value": "" },
+        { "key": "managerToken", "value": "" },
+        { "key": "targetUserId", "value": "" }
+    ],
+    "item": [
+        {
+            "name": "Health",
+            "item": [
+                {
+                    "name": "Health Check",
+                    "request": {
+                        "method": "GET",
+                        "url": { "raw": "{{baseUrl}}/api/health", "host": ["{{baseUrl}}"], "path": ["api", "health"] }
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                                    "pm.test('Reports ok', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Auth",
+            "item": [
+                {
+                    "name": "Register",
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "const suffix = Date.now();",
+                                    "pm.collectionVariables.set('testUsername', 'postman_user_' + suffix);",
+                                    "pm.collectionVariables.set('testEmail', 'postman_user_' + suffix + '@example.com');"
+                                ]
+                            }
+                        },
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status is 201', () => pm.response.to.have.status(201));"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "url": { "raw": "{{baseUrl}}/api/register", "host": ["{{baseUrl}}"], "path": ["api", "register"] },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"username\": \"{{testUsername}}\",\n    \"email\": \"{{testEmail}}\",\n    \"password\": \"{{testPassword}}\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Login",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                                    "const body = pm.response.json();",
+                                    "pm.test('Returns a token', () => pm.expect(body.token).to.be.a('string'));",
+                                    "if (body.token) { pm.collectionVariables.set('token', body.token); }"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "url": { "raw": "{{baseUrl}}/api/login", "host": ["{{baseUrl}}"], "path": ["api", "login"] },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"username\": \"{{testUsername}}\",\n    \"password\": \"{{testPassword}}\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Get Profile",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));"]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+                        "url": { "raw": "{{baseUrl}}/api/profile", "host": ["{{baseUrl}}"], "path": ["api", "profile"] }
+                    }
+                },
+                {
+                    "name": "Get Dashboard",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));"]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+                        "url": { "raw": "{{baseUrl}}/api/dashboard", "host": ["{{baseUrl}}"], "path": ["api", "dashboard"] }
+                    }
+                },
+                {
+                    "name": "Change Password",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));"]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Content-Type", "value": "application/json" },
+                            { "key": "Authorization", "value": "Bearer {{token}}" }
+                        ],
+                        "url": { "raw": "{{baseUrl}}/api/change-password", "host": ["{{baseUrl}}"], "path": ["api", "change-password"] },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"currentPassword\": \"{{testPassword}}\",\n    \"newPassword\": \"{{newPassword}}\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Forgot Password",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                                    "console.log('No real email provider is wired up. Check the running server\\'s console log for the reset link, then paste its token into the resetToken collection variable.');"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "url": { "raw": "{{baseUrl}}/api/forgot-password", "host": ["{{baseUrl}}"], "path": ["api", "forgot-password"] },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"{{testEmail}}\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Reset Password",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));"]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "url": { "raw": "{{baseUrl}}/api/reset-password", "host": ["{{baseUrl}}"], "path": ["api", "reset-password"] },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"token\": \"{{resetToken}}\",\n    \"password\": \"{{newPassword}}\"\n}"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Admin",
+            "description": "Requires {{adminToken}} - run \"Login as Admin\" first with real Admin credentials in {{adminUsername}}/{{adminPassword}}.",
+            "item": [
+                {
+                    "name": "Login as Admin",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                                    "const body = pm.response.json();",
+                                    "if (body.token) { pm.collectionVariables.set('adminToken', body.token); }"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "url": { "raw": "{{baseUrl}}/api/login", "host": ["{{baseUrl}}"], "path": ["api", "login"] },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"username\": \"{{adminUsername}}\",\n    \"password\": \"{{adminPassword}}\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "List Users",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));"]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+                        "url": { "raw": "{{baseUrl}}/api/admin/users", "host": ["{{baseUrl}}"], "path": ["api", "admin", "users"] }
+                    }
+                },
+                {
+                    "name": "Update User Role",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));"]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            { "key": "Content-Type", "value": "application/json" },
+                            { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/admin/users/{{targetUserId}}/role",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "admin", "users", "{{targetUserId}}", "role"]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"role\": \"MANAGER\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Delete User",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));"]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "DELETE",
+                        "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/admin/users/{{targetUserId}}",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "admin", "users", "{{targetUserId}}"]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Manager",
+            "description": "Requires {{managerToken}} - run \"Login as Manager\" first with real Manager credentials in {{managerUsername}}/{{managerPassword}}.",
+            "item": [
+                {
+                    "name": "Login as Manager",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                                    "const body = pm.response.json();",
+                                    "if (body.token) { pm.collectionVariables.set('managerToken', body.token); }"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "url": { "raw": "{{baseUrl}}/api/login", "host": ["{{baseUrl}}"], "path": ["api", "login"] },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"username\": \"{{managerUsername}}\",\n    \"password\": \"{{managerPassword}}\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "List Employees",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));"]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [{ "key": "Authorization", "value": "Bearer {{managerToken}}" }],
+                        "url": { "raw": "{{baseUrl}}/api/manager/employees", "host": ["{{baseUrl}}"], "path": ["api", "manager", "employees"] }
+                    }
+                },
+                {
+                    "name": "Delete Employee",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));"]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "DELETE",
+                        "header": [{ "key": "Authorization", "value": "Bearer {{managerToken}}" }],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/manager/employees/{{targetUserId}}",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "manager", "employees", "{{targetUserId}}"]
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}
