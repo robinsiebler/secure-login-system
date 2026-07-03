@@ -130,7 +130,13 @@ npm run lint
 npm test
 ```
 
-GitHub Actions (`.github/workflows/node-ci.yml`) runs lint and the Jest unit test suite on every push/PR to `main`. The test suite covers validation logic and JWT middleware only — it does not require a live Oracle connection, since Oracle isn't readily available as a CI service.
+GitHub Actions (`.github/workflows/node-ci.yml`) runs on every push/PR to `main`:
+
+1. **Install** — `npm ci`.
+2. **Dependency vulnerability check** — `npm audit --audit-level=high`, so the build fails on high/critical advisories but doesn't get blocked by unfixable low/moderate ones in transitive dev dependencies.
+3. **Lint** — `npm run lint`.
+4. **Build verification** — there's no compile step for a plain Node/Express app, so this boots the app with dummy environment variables and confirms `GET /api/health` responds. This works without a live Oracle connection because the DB pool connects lazily on first query (`config/database.js`), not at startup, so a boot check alone can't reach the database — it only proves the app itself starts cleanly.
+5. **Test** — the Jest unit test suite. Like the build check, this doesn't require a live Oracle connection, since Oracle isn't readily available as a CI service — every test mocks the services that would otherwise touch the database.
 
 ## Postman Collection
 
