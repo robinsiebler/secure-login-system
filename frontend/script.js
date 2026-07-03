@@ -55,6 +55,50 @@ document.querySelectorAll(".toggle-password").forEach((btn) => {
     });
 });
 
+const PASSWORD_STRENGTH_MAX_SCORE = 6;
+
+function calculatePasswordStrength(password) {
+    let score = 0;
+    if (/[a-z]/.test(password)) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/[0-9]/.test(password)) score++;
+    if (/[^A-Za-z0-9]/.test(password)) score++;
+    if (password.length >= 12) score++;
+    if (password.length >= 16) score++;
+
+    if (password.length < 8 || score <= 2) {
+        return { score, label: "Weak" };
+    }
+
+    return score <= 4 ? { score, label: "Good" } : { score, label: "Strong" };
+}
+
+function attachPasswordStrengthMeter(inputId, meterId) {
+    const input = document.getElementById(inputId);
+    const meter = document.getElementById(meterId);
+    const fill = meter.querySelector(".password-strength-fill");
+    const label = meter.querySelector(".password-strength-label");
+
+    input.addEventListener("input", () => {
+        const password = input.value;
+
+        if (!password) {
+            meter.hidden = true;
+            return;
+        }
+
+        meter.hidden = false;
+        const strength = calculatePasswordStrength(password);
+        fill.style.width = `${Math.min(100, Math.round((strength.score / PASSWORD_STRENGTH_MAX_SCORE) * 100))}%`;
+        fill.dataset.strength = strength.label.toLowerCase();
+        label.textContent = `Password strength: ${strength.label}`;
+    });
+}
+
+attachPasswordStrengthMeter("register-password", "register-password-strength");
+attachPasswordStrengthMeter("reset-password", "reset-password-strength");
+attachPasswordStrengthMeter("new-password", "new-password-strength");
+
 function setMessage(el, text, type) {
     el.textContent = text;
     el.className = `message ${type}`;
@@ -90,6 +134,7 @@ document.getElementById("register-form").addEventListener("submit", async (e) =>
         });
         setMessage(messageEl, "Account created. You can now log in.", "success");
         form.reset();
+        document.getElementById("register-password-strength").hidden = true;
         showTab("login");
     } catch (err) {
         setMessage(messageEl, err.message, "error");
@@ -166,6 +211,7 @@ document.getElementById("reset-password-form").addEventListener("submit", async 
             body: JSON.stringify({ token: form.token.value, password: form.password.value }),
         });
         form.reset();
+        document.getElementById("reset-password-strength").hidden = true;
         setMessage(document.getElementById("login-message"), data.message, "success");
         showTab("login");
     } catch (err) {
@@ -192,6 +238,7 @@ document.getElementById("change-password-form").addEventListener("submit", async
             }),
         });
         form.reset();
+        document.getElementById("new-password-strength").hidden = true;
         sessionStorage.removeItem("token");
         setMessage(document.getElementById("login-message"), "Password changed. Please log in again.", "success");
         showTab("login");
