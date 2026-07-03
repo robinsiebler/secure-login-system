@@ -186,6 +186,40 @@ input:focus {
     margin: 0.35rem 0 0;
 }
 
+.password-strength {
+    margin-top: 0.5rem;
+}
+
+.password-strength-bar {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    overflow: hidden;
+}
+
+.password-strength-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 2px;
+    background: var(--error);
+    transition: width 0.2s ease, background-color 0.2s ease;
+}
+
+.password-strength-fill[data-strength="good"] {
+    background: var(--accent);
+}
+
+.password-strength-fill[data-strength="strong"] {
+    background: var(--success);
+}
+
+.password-strength-label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-top: 0.25rem;
+}
+
 .link-row {
     text-align: center;
     font-size: 0.85rem;
